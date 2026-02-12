@@ -1,4 +1,4 @@
-require:
+plugins:
   - rubocop-rspec
 
 AllCops:
@@ -9,10 +9,25 @@ AllCops:
 Style/Documentation:
   Enabled: false
 
+Style/OpenStructUse:
+  Exclude:
+    - "spec/**/*"
+
+Naming/FileName:
+  Exclude:
+    - "lib/omniauth-vitsme.rb"
+
+Naming/VariableNumber:
+  Enabled: false
+
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
     - "*.gemspec"
+
+Metrics/ModuleLength:
+  Exclude:
+    - "spec/**/*"
 
 RSpec/ExampleLength:
   Max: 10

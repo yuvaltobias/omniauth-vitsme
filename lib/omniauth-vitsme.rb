@@ -1,3 +1,3 @@
 # frozen_string_literal: true
 
-require "omniauth/vitsme"
+require 'omniauth/vitsme'

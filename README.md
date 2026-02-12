@@ -1,6 +1,6 @@
-# OmniAuth vits.me (itsme)
+# OmniAuth vits.me
 
-OmniAuth strategy for [vits.me](https://vits.me) (itsme), the Belgian digital identity verification platform used across Belgium, Netherlands, Luxembourg, and France.
+OmniAuth strategy for [vits.me](https://vits.me) (itsme), global digital identity verification platform.
 
 Wraps [omniauth_openid_connect](https://github.com/omniauth/omniauth_openid_connect) with vits.me-specific defaults so you only need to supply `client_id` and `client_secret`.
 

@@ -109,6 +109,8 @@ Note: vits.me uses **pairwise subject identifiers** -- the same person will have
 
 ## Configuration
 
+This gem is a wrapper for [omniauth_openid_connect](https://github.com/omniauth/omniauth_openid_connect). All configuration options available for `omniauth_openid_connect` can be used with `omniauth-vitsme`. The most common options are listed below.
+
 | Option | Default | Description |
 |---|---|---|
 | `client_id` | *required* | Your vits.me client ID |
@@ -117,6 +119,54 @@ Note: vits.me uses **pairwise subject identifiers** -- the same person will have
 | `discovery` | `true` | Fetch endpoints from `.well-known/openid-configuration` |
 | `issuer` | `https://vits.me` | OIDC issuer URL |
 | `response_type` | `code` | OAuth response type (Authorization Code Flow) |
+
+## Environments
+
+For development or staging environments, Vits.me may provide a separate set of endpoints. You can configure these by overriding the `client_options`.
+
+```ruby
+Rails.application.config.middleware.use OmniAuth::Builder do
+  provider :vitsme,
+    name: 'vitsme_staging', # Give it a unique name
+    client_id: ENV["VITSME_STAGING_CLIENT_ID"],
+    client_secret: ENV["VITSME_STAGING_CLIENT_SECRET"],
+    client_options: {
+      site: 'https://staging.vits.me',
+      authorize_url: 'https://staging.vits.me/oauth/authorize',
+      token_url: 'https://staging.vits.me/oauth/token',
+      userinfo_endpoint: 'https://staging.vits.me/userinfo'
+    }
+end
+```
+**Note:** The URLs in the example above are placeholders. Please refer to the official Vits.me documentation for the correct staging URLs.
+
+## Authentication Failures
+
+If the user denies the authentication request or if there's a misconfiguration, OmniAuth will redirect to the `/auth/failure` path in your application. The `omniauth.error` and `omniauth.error.type` variables will be set in the Rack environment.
+
+You can catch these failures by creating a `FailureEndpoint` in your application, for example, by routing `/auth/failure` to a specific controller action.
+
+In a Rails application, you can handle this in your `OmniAuth::FailureEndpoint`:
+
+```ruby
+# config/initializers/omniauth.rb
+OmniAuth.config.on_failure = Proc.new { |env|
+  OmniAuth::FailureEndpoint.new(env).redirect_to_failure
+}
+```
+
+```ruby
+# app/controllers/omniauth_callbacks_controller.rb
+class OmniauthCallbacksController < Devise::OmniauthCallbacksController
+  def failure
+    # Your custom failure logic here.
+    # For example, redirect to the root path with an error message.
+    redirect_to root_path, alert: "Authentication failed: #{params[:message]}"
+  end
+end
+```
+
+The `params[:message]` will contain a description of the error (e.g., `invalid_credentials`).
 
 ## Development
 

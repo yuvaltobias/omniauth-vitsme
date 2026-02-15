@@ -5,13 +5,13 @@ require_relative 'lib/omniauth/vitsme/version'
 Gem::Specification.new do |spec|
   spec.name = 'omniauth-vitsme'
   spec.version = OmniAuth::Vitsme::VERSION
-  spec.authors = ['Your Name']
+  spec.authors = ['Yuval Tobias']
   spec.email = ['yuval@mattyr.com']
 
   spec.summary = 'OmniAuth strategy for vits.me identity verification'
   spec.description = 'OmniAuth OpenID Connect strategy for vits.me, ' \
                      'digital identity platform.'
-  spec.homepage = 'https://github.com/example/omniauth-vitsme'
+  spec.homepage = 'https://github.com/yuvaltobias/omniauth-vitsme'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.0.0'
 

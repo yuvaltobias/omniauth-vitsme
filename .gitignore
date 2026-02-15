@@ -8,3 +8,5 @@
 /tmp/
 *.gem
 Gemfile.lock
+/vendor/bundle/
+/.rspec_status

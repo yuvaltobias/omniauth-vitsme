@@ -41,6 +41,8 @@ module OmniAuth
           email: raw_info['email'],
           birthday: raw_info['birthdate'] || raw_info['birthday'],
           nationality: raw_info['nationality'],
+          nationality_in_eu: raw_info['nationality__in_eu'],
+          birthyear: raw_info['birthyear'],
           age_over_13: raw_info['age__over_13'],
           age_over_18: raw_info['age__over_18'],
           age_over_21: raw_info['age__over_21']

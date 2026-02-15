@@ -110,6 +110,8 @@ module OmniAuth
               'email' => 'jane@example.com',
               'birthdate' => '1990-01-15',
               'nationality' => 'IL',
+              'nationality__in_eu' => false,
+              'birthyear' => 1990,
               'age__over_18' => true,
               'age__over_21' => true
             }
@@ -146,6 +148,14 @@ module OmniAuth
 
         it 'returns nationality in info' do
           expect(strategy.info[:nationality]).to eq('IL')
+        end
+
+        it 'returns nationality_in_eu in info' do
+          expect(strategy.info[:nationality_in_eu]).to be false
+        end
+
+        it 'returns birthyear in info' do
+          expect(strategy.info[:birthyear]).to eq(1990)
         end
 
         it 'returns age verification flags' do

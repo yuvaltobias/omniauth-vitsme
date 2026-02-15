@@ -82,6 +82,8 @@ The auth hash returned in the callback looks like:
     email: "jane@example.com",
     birthday: "1990-01-15",
     nationality: "IL",
+    nationality_in_eu: false,
+    birthyear: 1990,
     age_over_13: true,
     age_over_18: true,
     age_over_21: true

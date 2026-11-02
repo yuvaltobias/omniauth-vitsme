@@ -1,0 +1,175 @@
+{
+  "catalog_version": 2,
+  "about": "Every scope, claim, gate and refusal reason a vits.me relying party can use. Source of truth for omniauth-vitsme (OmniAuth::Vitsme::Catalog) and for agents and developers choosing scopes. Mirrors the vits.me server: config/initializers/doorkeeper.rb (scopes), config/initializers/doorkeeper_openid_connect.rb (claims), config/initializers/authorizations_controller_extension.rb (value domains, gates, refusals).",
+  "conventions": {
+    "delivery": "Every claim except sub comes from the UserInfo endpoint, never the ID token. omniauth-vitsme fetches UserInfo on every sign-in.",
+    "absent_means_undisclosed": "A disclosure claim may be missing even when its scope was granted: the person chose to share nothing, holds no such detail, or hid it. Missing is never false.",
+    "person_chooses_the_value": "For disclosure claims the person picks the value on vits.me's consent screen, from options at different levels of detail (e.g. a given name, initials, or a full name). Ask for the least you need.",
+    "sub_is_private": "sub, solid, defunct_solids and fluid are private per-site identifiers. Store them; never render, log, put in a URL, federate or derive a public handle or email from them."
+  },
+  "identity_scopes": {
+    "openid": {
+      "required": true,
+      "claims": ["sub", "solid", "defunct_solids"],
+      "description": "Sign in. Always requested."
+    },
+    "fluid": {
+      "required": false,
+      "claims": ["fluid"],
+      "description": "Also sign in people whose verification is still pending (sub = fluid_...). Cannot be combined with a nationality gate.",
+      "doc": "https://github.com/yuvaltobias/omniauth-vitsme#unverified-fluid-identities"
+    }
+  },
+  "claims": {
+    "sub": {
+      "scope": "openid",
+      "type": "string",
+      "format": "solid_<base32> for a verified person; fluid_<base32> for a pending signup (only with the fluid scope)",
+      "description": "Pairwise subject: the same person has a different sub at every site. The OmniAuth uid."
+    },
+    "solid": {
+      "scope": "openid",
+      "type": "string",
+      "format": "solid_<base32>",
+      "description": "Equal to sub for a verified person; absent for a pending signup."
+    },
+    "defunct_solids": {
+      "scope": "openid",
+      "type": "string_array",
+      "format": "[solid_<base32>, ...]",
+      "description": "Earlier SOLIDs this site was given for the same person (kept one year). If your record holds one of these, move it to the current sub."
+    },
+    "fluid": {
+      "scope": "fluid",
+      "type": "string_array",
+      "format": "[fluid_<base32>, ...]",
+      "description": "Pending-signup identifiers this site may have been given for the same person in the past week. Merge any tentative account keyed by one into this person."
+    },
+    "name": {
+      "scope": "name",
+      "type": "string",
+      "examples": ["Jane", "J. D.", "Jane D.", "Jane Doe"],
+      "description": "One name, at the level of detail the person chose. Not split into given and family names. May be in Hebrew script."
+    },
+    "name__full": {
+      "scope": "name__full",
+      "type": "string",
+      "examples": ["Jane Doe", "Jane M. Doe"],
+      "description": "A full name, chosen from the person's full-name forms."
+    },
+    "nationality": {
+      "scope": "nationality",
+      "type": "string",
+      "format": "ISO 3166-1 alpha-2, upper case",
+      "examples": ["IL"],
+      "description": "A nationality the person holds and chose to share."
+    },
+    "nationality__in_eu": {
+      "scope": "nationality__in_eu",
+      "type": "boolean",
+      "description": "Whether the shared nationality is an EU member state."
+    },
+    "nationality__in_eea": {
+      "scope": "nationality__in_eea",
+      "type": "boolean",
+      "description": "Whether the shared nationality is in the European Economic Area."
+    },
+    "nationality__in_esm": {
+      "scope": "nationality__in_esm",
+      "type": "boolean",
+      "description": "Whether the shared nationality is in the European Single Market."
+    },
+    "nationality__gdpr_compliant": {
+      "scope": "nationality__gdpr_compliant",
+      "type": "boolean",
+      "description": "Whether the shared nationality is an EEA member state or the United Kingdom."
+    },
+    "il_government_id_number": {
+      "scope": "il_government_id_number",
+      "type": "string",
+      "description": "Israeli government ID number (teudat zehut). Highly sensitive: request only with a legal need."
+    },
+    "age": {
+      "scope": "age",
+      "type": "string",
+      "values": ["under_13", "over_13", "over_18", "over_21", "gen_lost", "gen_greatest", "gen_silent", "gen_boomers", "gen_x", "gen_y", "gen_z", "gen_alpha", "under_18", "18_to_24", "25_to_34", "35_to_44", "45_to_54", "55_to_64", "over_65", "<years as digits>"],
+      "description": "The person's age at the level they chose: a threshold, a generation, a range, or exact years."
+    },
+    "age__years": {
+      "scope": "age__years",
+      "type": "integer",
+      "description": "Exact age in whole years."
+    },
+    "age__range": {
+      "scope": "age__range",
+      "type": "string",
+      "values": ["under_18", "18_to_24", "25_to_34", "35_to_44", "45_to_54", "55_to_64", "over_65"],
+      "description": "An age range."
+    },
+    "age__over_13": {
+      "scope": "age__over_13",
+      "type": "boolean",
+      "description": "Whether the person is 13 or older."
+    },
+    "age__over_18": {
+      "scope": "age__over_18",
+      "type": "boolean",
+      "description": "Whether the person is 18 or older."
+    },
+    "age__over_21": {
+      "scope": "age__over_21",
+      "type": "boolean",
+      "description": "Whether the person is 21 or older."
+    },
+    "birthdate": {
+      "scope": "birthdate",
+      "type": "string",
+      "format": "YYYY-MM-DD",
+      "description": "Full date of birth."
+    },
+    "birthday": {
+      "scope": "birthday",
+      "type": "string",
+      "format": "M-D (month-day, no year) or YYYY-MM-DD, as the person chose",
+      "description": "Birthday. The person may share it with or without the year."
+    },
+    "birthyear": {
+      "scope": "birthyear",
+      "type": "string",
+      "format": "YYYY",
+      "description": "Year of birth."
+    }
+  },
+  "gates": {
+    "openid_nationality": {
+      "scope_pattern": "^openid_nationality__[a-z]{2}$",
+      "scope_format": "openid_nationality__<iso 3166-1 alpha-2, lower case>",
+      "claims": [],
+      "description": "Only verified people holding one of the requested nationalities can finish signing in. Several codes are any-of. Emits no claim: a successful sign-in is the answer. vits.me asks the person's consent for the verdict. Refused people return with error=access_denied and vitsme_error=nationality_gate (or nationality_gate_unverified).",
+      "incompatible_with": ["fluid"]
+    }
+  },
+  "refusals": {
+    "nationality_gate": {
+      "error": "access_denied",
+      "omniauth_failure": "nationality_gate_refused",
+      "description": "The person holds none of the nationalities the gate requires (or has hidden them)."
+    },
+    "nationality_gate_unverified": {
+      "error": "access_denied",
+      "omniauth_failure": "nationality_gate_refused",
+      "description": "A pending (unverified) signup tried to pass a nationality gate."
+    },
+    "subject_mismatch": {
+      "error": "access_denied",
+      "omniauth_failure": "identity_mismatch",
+      "description": "The site said whom it expected (claims sub value) and a different person is signed in at vits.me."
+    }
+  },
+  "lifetimes_seconds": {
+    "authorization_code": 5,
+    "access_token": 5,
+    "id_token": 5,
+    "refresh_token": null
+  }
+}

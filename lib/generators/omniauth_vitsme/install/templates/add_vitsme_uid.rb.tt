@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+# The private, per-site identifier vits.me returns (the OmniAuth uid). Unique, never shown.
+class AddVitsmeUidTo<%= table_name.camelize %> < ActiveRecord::Migration<%= migration_version %>
+  def change
+    add_column :<%= table_name %>, :vitsme_uid, :string
+    add_index :<%= table_name %>, :vitsme_uid, unique: true
+  end
+end

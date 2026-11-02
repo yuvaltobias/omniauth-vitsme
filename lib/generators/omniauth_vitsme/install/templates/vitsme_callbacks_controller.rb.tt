@@ -1,0 +1,39 @@
+# frozen_string_literal: true
+
+# Where vits.me sends people back. Never log request.env['omniauth.auth']: it holds the private uid and
+# whatever the person chose to share.
+class VitsmeCallbacksController < ApplicationController
+  def sign_in
+    auth = request.env['omniauth.auth']
+    person = returning_person(auth) || <%= model %>.create!(vitsme_uid: auth.uid)
+    reset_session
+    session[:<%= session_key %>] = person.id
+    redirect_to root_path, notice: t('vitsme.signed_in')
+  end
+<% if verify? -%>
+
+  # The strategy has already checked that this answer is about the person signed in here
+  # (expected_uid). A claim the person chose not to share is absent — never treat that as false.
+  def verify
+    claims = request.env['omniauth.auth'].extra.claims
+    # Keep what you asked for, e.g.: current_<%= options[:model].underscore %>.update!(adult: claims['age__over_18'])
+    redirect_to root_path, notice: t('vitsme.verified')
+  end
+<% end -%>
+
+  # OmniAuth sends every refusal here with ?message=<failure type>.
+  def failure
+    redirect_to root_path, alert: t("vitsme.failures.#{params[:message]}", default: t('vitsme.failures.default'))
+  end
+
+  private
+
+  # A returning person may be on file under an earlier uid (vits.me's defunct_solids) or, if you ask
+  # for the fluid scope, under a pending-signup uid. Move them to the current one.
+  def returning_person(auth)
+    uids = auth.extra.lookup_uids + auth.extra.fluid_uids
+    person = <%= model %>.where(vitsme_uid: uids).min_by { |p| uids.index(p.vitsme_uid) }
+    person.update!(vitsme_uid: auth.uid) if person && person.vitsme_uid != auth.uid
+    person
+  end
+end

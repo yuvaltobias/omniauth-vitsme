@@ -1,0 +1,9 @@
+# omniauth-vitsme
+
+> OmniAuth strategy (Ruby/Rails) for vits.me: sign people in, ask about details they verified (name, age, nationality), and admit only verified nationals of chosen countries. The uid is a private per-site identifier; claims may be absent; follow-up questions about a signed-in person need `expected_uid`.
+
+- [AGENTS.md](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/AGENTS.md): rules for agents, read first
+- [data/claims.json](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/data/claims.json): every scope, claim, type, gate and refusal, machine-readable
+- [README.md](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/README.md): quick start, claims, verifying a signed-in person, gates, FLUID, failure types, auth hash, privacy rules, testing
+- [examples/rails/app.rb](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/examples/rails/app.rb): a one-file Rails app using sign-in, a gate and verification
+- [Skill: vitsme-integrate](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/.claude/skills/vitsme-integrate/SKILL.md): add vits.me to a Rails app end to end

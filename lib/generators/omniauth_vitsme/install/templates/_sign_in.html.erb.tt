@@ -1,0 +1,5 @@
+<%%# OmniAuth 2 starts sign-in by POST only (add omniauth-rails_csrf_protection). %>
+<%%= button_to t('vitsme.sign_in'), '/auth/vitsme', method: :post, data: { turbo: false } %>
+<% if verify? -%>
+<%%= button_to t('vitsme.verify'), '/auth/vitsme_verify', method: :post, data: { turbo: false } if session[:<%= session_key %>] %>
+<% end -%>

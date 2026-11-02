@@ -1,0 +1,26 @@
+# frozen_string_literal: true
+
+# Sign in with vits.me (omniauth-vitsme). The uid it returns is a private, per-site identifier: store
+# it to find the person again, never show it, log it, put it in a URL or build a handle from it.
+vitsme = {
+  client_id: ENV.fetch('VITSME_CLIENT_ID', nil),
+  client_secret: ENV.fetch('VITSME_CLIENT_SECRET', nil),
+  environment: Rails.env.production? ? :production : :development
+}
+
+Rails.application.config.middleware.use OmniAuth::Builder do
+  provider :vitsme, vitsme.merge(
+    scope: <%= symbols(sign_in_scopes) %><% unless gate.empty? %>,
+    # Only verified nationals of these countries finish signing in; vits.me asks for their consent.
+    nationality_gate: %w[<%= gate.join(' ') %>]<% end %>
+  )
+<% if verify? -%>
+
+  # Asks vits.me about the person already signed in here, and refuses an answer about anyone else.
+  provider :vitsme, vitsme.merge(
+    name: :vitsme_verify,
+    scope: <%= symbols(verify_scopes) %>,
+    expected_uid: ->(env) { <%= model %>.find_by(id: env['rack.session']['<%= session_key %>'])&.vitsme_uid }
+  )
+<% end -%>
+end

@@ -1,131 +1,274 @@
 # OmniAuth vits.me
 
-OmniAuth strategy for [vits.me](https://vits.me) (itsme), global digital identity verification platform.
+Sign people in with [vits.me](https://vits.me), ask about details they have verified there (a name, an
+age, a nationality), and admit only verified nationals of chosen countries. An OmniAuth strategy on top
+of [omniauth_openid_connect](https://github.com/omniauth/omniauth_openid_connect), with the vits.me
+rules built in.
 
-Wraps [omniauth_openid_connect](https://github.com/omniauth/omniauth_openid_connect) with vits.me-specific defaults so you only need to supply `client_id` and `client_secret`.
+> **Agents:** read [AGENTS.md](AGENTS.md) first. Every scope and claim is in
+> [data/claims.json](data/claims.json).
 
-## Installation
+- [Quick start](#quick-start)
+- [Environments](#environments)
+- [Claims](#claims)
+- [Verifying a signed-in person](#verifying-a-signed-in-person)
+- [Gated communities](#gated-communities)
+- [Unverified (FLUID) identities](#unverified-fluid-identities)
+- [Finding a returning person](#finding-a-returning-person)
+- [Failure types](#failure-types)
+- [The auth hash](#the-auth-hash)
+- [Operational notes](#operational-notes)
+- [Privacy rules](#privacy-rules)
+- [Testing](#testing)
+- [Options](#options)
 
-Add to your Gemfile:
+## Quick start
 
 ```ruby
-gem "omniauth-vitsme", "~> 0.1"
+# Gemfile
+gem "omniauth-vitsme", "~> 0.2"
+gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
-Then run:
+The generator writes everything below: an initializer, a callbacks controller, failure messages
+(en/he), a sign-in button, routes, and a migration adding a unique `vitsme_uid` column.
 
 ```
-bundle install
+bin/rails g omniauth_vitsme:install [--model=User] [--scope=name] [--verify=age__over_18] [--gate=IL] [--fluid]
 ```
 
-## Usage
-
-### Rails (Rack middleware)
-
-```ruby
-Rails.application.config.middleware.use OmniAuth::Builder do
-  provider :vitsme,
-    client_id: ENV["VITSME_CLIENT_ID"],
-    client_secret: ENV["VITSME_CLIENT_SECRET"]
-end
-```
-
-### With additional scopes
+Or by hand:
 
 ```ruby
 Rails.application.config.middleware.use OmniAuth::Builder do
   provider :vitsme,
     client_id: ENV["VITSME_CLIENT_ID"],
     client_secret: ENV["VITSME_CLIENT_SECRET"],
-    scope: [:openid, :name, :age__over_18, :nationality]
+    environment: Rails.env.production? ? :production : :development
 end
 ```
 
-### Devise integration
-
-```ruby
-Devise.setup do |config|
-  config.omniauth :vitsme,
-    client_id: ENV["VITSME_CLIENT_ID"],
-    client_secret: ENV["VITSME_CLIENT_SECRET"],
-    scope: [:openid, :name]
-end
+```erb
+<%= button_to "Sign in", "/auth/vitsme", method: :post, data: { turbo: false } %>
 ```
 
-## Available Scopes
+Client credentials come from the vits.me team: there is no self-service registration yet. Register
+`https://<your host>/auth/vitsme/callback` (and one callback per extra provider) as redirect URIs.
 
-| Scope | Description |
+## Environments
+
+| `environment:` | Issuer |
 |---|---|
-| `openid` | Required. Returns the subject identifier (`sub`). |
-| `name` | Given name and family name |
-| `name__full` | Full name as a single string |
-| `nationality` | ISO country code |
-| `nationality__in_eu` | Whether the user is an EU national |
-| `birthday` / `birthdate` | Date of birth |
-| `birthyear` | Year of birth |
-| `age__over_13` | Age verification (13+) |
-| `age__over_18` | Age verification (18+) |
-| `age__over_21` | Age verification (21+) |
+| `:production` (default) | `https://vits.me` |
+| `:staging` | `https://staging.vits.me` |
+| `:development` / `"test"` | `https://vitsme.localhost` (local, mkcert certificate) |
 
-## Auth Hash
+`OmniAuth::Vitsme.issuer(Rails.env)` gives the same mapping. An explicit `issuer:` wins.
 
-The auth hash returned in the callback looks like:
+## Claims
+
+Ask for a claim by its scope: `scope: %i[openid age__over_18 nationality]`. `openid` is always added.
+An unknown scope raises `ArgumentError` when the app boots. The full list, with types and value
+formats, is [data/claims.json](data/claims.json).
+
+| Scope = claim | Type in `extra.claims` | Example |
+|---|---|---|
+| `name` | String: one name at the detail the person chose | `"Jane"`, `"J. D."`, `"Jane Doe"` |
+| `name__full` | String | `"Jane Doe"` |
+| `nationality` | String, ISO 3166-1 alpha-2 | `"IL"` |
+| `nationality__in_eu`, `__in_eea`, `__in_esm`, `__gdpr_compliant` | Boolean | `true` |
+| `il_government_id_number` | String | (sensitive: ask only with a legal need) |
+| `age` | String: a threshold, generation, range or years | `"over_18"`, `"gen_x"`, `"25_to_34"`, `"37"` |
+| `age__years` | Integer | `37` |
+| `age__range` | String | `"25_to_34"` |
+| `age__over_13`, `__over_18`, `__over_21` | Boolean | `true` |
+| `birthdate` | String `YYYY-MM-DD` | `"1990-01-15"` |
+| `birthday` | String `M-D` or `YYYY-MM-DD`, as the person chose | `"1-15"` |
+| `birthyear` | String `YYYY` | `"1990"` |
+
+**The person chooses.** On vits.me's consent screen the person picks what to share for each scope,
+at the level of detail they prefer, or nothing at all.
+
+**Missing is not false.** A claim may be absent even when its scope was granted: the person shared
+nothing, holds no such detail, or hid it. `extra.claims["age__over_18"]` is `true`, `false`, or not
+there. Treat "not there" as "unknown", never as "no":
+
+```ruby
+case auth.extra.claims["age__over_18"]
+when true  then admit
+when false then refuse
+else            ask_them_to_share_it
+end
+```
+
+There is no email, phone, picture or username. If you need a public handle, ask the person for one.
+
+## Verifying a signed-in person
+
+vits.me signs in **whoever is at its keyboard** and answers about them. A provider that asks about the
+person *already signed in to your app* must make sure the answer is about them, or one person's
+verified details get credited to another. `expected_uid` does that:
+
+```ruby
+provider :vitsme,
+  name: :vitsme_verify,
+  client_id: ENV["VITSME_CLIENT_ID"], client_secret: ENV["VITSME_CLIENT_SECRET"],
+  scope: %i[openid age__over_18],
+  expected_uid: ->(env) { User.find_by(id: env["rack.session"]["user_id"])&.vitsme_uid }
+```
+
+- Nobody signed in: the request fails `:not_signed_in` without leaving your app.
+- vits.me is told whom you expect (the standard OpenID Connect `claims` sub request). It opens the
+  pincode page on that person's account and refuses anyone else (`:identity_mismatch`).
+- The callback checks again, in the middleware, before your controller runs: the answer must be about
+  `expected_uid` or a uid vits.me lists in `defunct_solids`. Otherwise it fails `:identity_mismatch`.
+- With `expected_uid` set, a pending (`fluid_`) identity fails `:unverified_identity`
+  (`require_verified: false` turns that off).
+
+Use `expected_uid` only for these follow-up questions. At sign-in there is nobody to expect yet.
+
+## Gated communities
+
+```ruby
+provider :vitsme, client_id: ..., client_secret: ..., nationality_gate: %w[IL]
+```
+
+Only verified people holding one of the listed nationalities finish signing in. Several codes mean
+any of them. vits.me asks the person to consent to this check. **The gate sends no claim back**: a
+successful sign-in is the answer. Add the `nationality` scope if you also want the value. A person
+who doesn't pass returns as `:nationality_gate_refused`, and no account is created.
+
+A gate admits verified people only, so it can't be combined with the `fluid` scope (that raises at
+boot). Make your gated sign-in button look different from an ordinary one, so people know before they
+start. To build a community that way, follow madon's lead: gate the sign-in, then ask the new member
+to pick a public handle. Never derive the handle from the uid.
+
+## Unverified (FLUID) identities
+
+By default only verified people can sign in. With `scope: %i[openid fluid]`, people whose verification
+is still pending can sign in too:
+
+- `uid` starts with `fluid_`, `extra.identity` is `:fluid`, and `info.verified` is `false`.
+- A pending identity lasts one week. Give it a limited, tentative account.
+- When the person is verified, a later sign-in returns their `solid_` uid with the pending uids in
+  `extra.fluid_uids`. Merge the tentative account into the verified one, and drop tentative accounts
+  nobody claimed after a week.
+
+## Finding a returning person
+
+Look a person up by `extra.lookup_uids`, current uid first, plus `extra.fluid_uids` if you use FLUID.
+A record found under an older uid belongs to this person: move it to `auth.uid`.
+
+```ruby
+uids = auth.extra.lookup_uids + auth.extra.fluid_uids
+user = User.where(vitsme_uid: uids).min_by { |u| uids.index(u.vitsme_uid) }
+user&.update!(vitsme_uid: auth.uid) unless user&.vitsme_uid == auth.uid
+user ||= User.create!(vitsme_uid: auth.uid)
+```
+
+(vits.me lists superseded uids in `defunct_solids` for a year after a re-key.)
+
+## Failure types
+
+OmniAuth sends failures to `OmniAuth.config.on_failure` (in Rails, `/auth/failure?message=<type>`).
+
+| Type | Meaning |
+|---|---|
+| `:not_signed_in` | `expected_uid` returned nothing: nobody is signed in to your app. |
+| `:identity_mismatch` | The answer was about someone other than `expected_uid`, whether caught by vits.me or by the callback. |
+| `:unverified_identity` | A pending (`fluid_`) identity, refused by `require_verified`. |
+| `:nationality_gate_refused` | The person doesn't hold a nationality the gate requires (or is unverified). |
+| `:access_denied` | Any other refusal, e.g. the person cancelled. |
+| others | From omniauth_openid_connect: `:csrf_detected`, `:invalid_grant`, `:timeout`, … |
+
+## The auth hash
 
 ```ruby
 {
   provider: "vitsme",
-  uid: "pairwise-subject-identifier",
-  info: {
-    name: "Jane Doe",
-    first_name: "Jane",
-    last_name: "Doe",
-    email: "jane@example.com",
-    birthday: "1990-01-15",
-    nationality: "IL",
-    age_over_13: true,
-    age_over_18: true,
-    age_over_21: true
-  },
-  credentials: {
-    id_token: "eyJ...",
-    token: "access_token_value",
-    refresh_token: "refresh_token_value",
-    expires_in: 3600,
-    scope: "openid name"
-  },
+  uid: "solid_…",                      # private: store, never show or log
+  info: { name: "Jane D.", nationality: "IL", verified: true },  # only what was shared
+  credentials: { id_token: "…", scope: "openid name" },          # no refresh token
   extra: {
-    raw_info: {
-      sub: "pairwise-subject-identifier",
-      name: "Jane Doe",
-      # ... all raw claims from the userinfo endpoint
-    }
+    identity: :solid,                  # or :fluid
+    lookup_uids: ["solid_…", "solid_<earlier>"],
+    fluid_uids: [],
+    claims: { "name" => "Jane D.", "age__over_18" => true },     # typed, shared claims only
+    raw_info: { "sub" => "solid_…", … }                          # the UserInfo response, verbatim
   }
 }
 ```
 
-Only requested scopes will appear in `info`. Nil values are omitted via `.compact`.
+`info.name` is the shared `name` (or `name__full`). OmniAuth always includes the key, which may be nil.
 
-Note: vits.me uses **pairwise subject identifiers** -- the same person will have a different `uid` for each registered client application.
+## Operational notes
 
-## Configuration
+- **Read everything in the callback.** Authorization codes, access tokens and ID tokens live for
+  **5 seconds** and there is no refresh token. The strategy redeems the code and fetches UserInfo at
+  once. Keep your server's clock in sync (NTP): a few seconds of skew fails ID-token validation.
+- **Every sign-in asks for the pincode.** A regular person's vits.me session lasts one site sign-in,
+  so there is no single sign-on between sites and `prompt=none` cannot succeed. `prompt: :login` is the
+  default. A "verify" round-trip asks for the pincode too.
+- **No logout endpoint.** Sign people out of your app; there's nothing to end at vits.me.
+- **PKCE (S256) is on** by default, alongside the client secret.
+- **Claims arrive from UserInfo, not the ID token.** The strategy handles this.
 
-| Option | Default | Description |
+## Privacy rules
+
+- The uid (`sub`), `lookup_uids` and `fluid_uids` are **private, per-site identifiers**. Treat them
+  like session tokens: store them server-side as the lookup key, and **never** render them, log them,
+  put them in a URL, federate them, or derive a username, handle or email from them.
+- Don't log `request.env["omniauth.auth"]`: it holds the uid and everything the person shared.
+- Ask for the least you need. `age__over_18` answers "is this an adult?". `birthdate` answers far more.
+- In copy your users read, call people "verified". There is no need to name vits.me.
+
+## Testing
+
+```ruby
+require "omniauth/vitsme/test"
+
+OmniAuth.config.test_mode = true
+OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })                 # :vitsme
+OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: user.vitsme_uid, claims: { name: "Jane D." })
+OmniAuth::Vitsme::Test.mock_auth(identity: :fluid)                               # pending signup
+OmniAuth::Vitsme::Test.mock_failure(:vitsme_verify, :identity_mismatch)
+```
+
+Mocks are built by the same code as real sign-ins, so they have the real shape and types. Unknown
+claims raise. OmniAuth's test mode bypasses the strategy, so `expected_uid` doesn't run against a mock:
+cover your failure handling with `mock_failure`.
+
+[examples/rails/app.rb](examples/rails/app.rb) is a one-file Rails app using sign-in, a gate and
+verification. The test suite boots it against a stubbed vits.me.
+
+## Options
+
+| Option | Default | |
 |---|---|---|
-| `client_id` | *required* | Your vits.me client ID |
-| `client_secret` | *required* | Your vits.me client secret |
-| `scope` | `[:openid]` | OIDC scopes to request |
-| `discovery` | `true` | Fetch endpoints from `.well-known/openid-configuration` |
-| `issuer` | `https://vits.me` | OIDC issuer URL |
-| `response_type` | `code` | OAuth response type (Authorization Code Flow) |
+| `client_id`, `client_secret` | required | From the vits.me team |
+| `environment` | `:production` | `:production`, `:staging`, `:development` |
+| `issuer` | from `environment` | |
+| `scope` | `[:openid]` | Validated against [data/claims.json](data/claims.json) |
+| `nationality_gate` | `[]` | ISO alpha-2 codes, e.g. `%w[IL]` |
+| `expected_uid` | `nil` | `->(env) { uid }` for follow-up questions about a signed-in person |
+| `require_verified` | on when `expected_uid` is set | Refuse `fluid_` identities |
+| `send_expected_uid` | `true` | Tell vits.me whom you expect |
+| `prompt` | `:login` | |
+| `pkce` | `true` | S256 |
+| `name` | `"vitsme"` | Set a different name for each additional provider |
+
+Everything else is passed to omniauth_openid_connect.
 
 ## Development
 
 ```
 bundle install
-bundle exec rspec
+bundle exec rspec     # strategy, catalog, generator, and the example Rails app
 bundle exec rubocop
-bundle exec rake        # runs both
 ```
+
+The catalog mirrors the vits.me server. When vits.me adds a scope, it lands in `data/claims.json` in
+the same change (vits.me's `docs/adding-vitsme-scope.md`).
 
 ## License
 

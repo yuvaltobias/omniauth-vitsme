@@ -2,7 +2,7 @@ plugins:
   - rubocop-rspec
 
 AllCops:
-  TargetRubyVersion: 3.0
+  TargetRubyVersion: 3.3
   NewCops: enable
   SuggestExtensions: false
 
@@ -37,3 +37,27 @@ RSpec/MultipleExpectations:
 
 RSpec/NestedGroups:
   Max: 4
+
+Metrics/ClassLength:
+  Max: 150
+
+Metrics/AbcSize:
+  Max: 26
+
+Metrics/CyclomaticComplexity:
+  Max: 9
+
+Metrics/PerceivedComplexity:
+  Max: 9
+
+Metrics/MethodLength:
+  Max: 15
+  Exclude:
+    - "spec/**/*"
+
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    OmniAuth: omniauth

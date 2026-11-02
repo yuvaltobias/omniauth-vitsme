@@ -1,0 +1,66 @@
+# frozen_string_literal: true
+
+require 'securerandom'
+require 'omniauth'
+require 'omniauth/vitsme'
+
+module OmniAuth
+  module Vitsme
+    # Test helpers for apps that sign people in with vits.me. Not loaded by default:
+    #
+    #   require 'omniauth/vitsme/test'
+    #   OmniAuth.config.test_mode = true
+    #   OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })              # provider :vitsme
+    #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })
+    #   OmniAuth::Vitsme::Test.mock_failure(:verify, :identity_mismatch)
+    #
+    # The auth hash is built by the same code as the real strategy's (AuthShape), so `info`, `extra`
+    # and the typed claims look exactly as they will in production. OmniAuth's test mode skips the
+    # strategy itself, so the identity checks (expected_uid, require_verified) do not run against a
+    # mock — cover your handling of them with mock_failure.
+    module Test
+      module_function
+
+      # A plausible private uid. Real ones are opaque; never derive anything from them.
+      def uid(identity = :solid)
+        "#{identity == :fluid ? AuthShape::FLUID_PREFIX : AuthShape::SOLID_PREFIX}#{SecureRandom.alphanumeric(52).downcase}"
+      end
+
+      # The UserInfo response vits.me would send: identity claims plus the disclosure claims given.
+      def raw_info(uid:, claims: {}, defunct_uids: [], fluid_uids: [])
+        claims = claims.transform_keys(&:to_s)
+        unknown = claims.keys.reject { |name| Catalog.claim(name) }
+        raise ArgumentError, "omniauth-vitsme: unknown claim(s) #{unknown.join(', ')}" unless unknown.empty?
+
+        info = { 'sub' => uid }
+        info['solid'] = uid if AuthShape.identity_kind(uid) == :solid
+        info['defunct_solids'] = defunct_uids unless defunct_uids.empty?
+        info['fluid'] = fluid_uids unless fluid_uids.empty?
+        info.merge(claims)
+      end
+
+      def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [])
+        uid ||= self.uid(identity)
+        raw = raw_info(uid: uid, claims: claims, defunct_uids: defunct_uids, fluid_uids: fluid_uids)
+        OmniAuth::AuthHash.new(
+          provider: provider.to_s,
+          uid: uid,
+          info: AuthShape.info(uid, raw),
+          credentials: { id_token: 'test.id.token', scope: 'openid' },
+          extra: AuthShape.extra(uid, raw)
+        )
+      end
+
+      # Makes the next callback for `provider` succeed with this person.
+      def mock_auth(provider = :vitsme, **)
+        OmniAuth.config.mock_auth[provider.to_sym] = auth_hash(provider, **)
+      end
+
+      # Makes the next callback for `provider` fail with `type` (e.g. :identity_mismatch, :not_signed_in,
+      # :unverified_identity, :nationality_gate_refused, :access_denied).
+      def mock_failure(provider = :vitsme, type = :access_denied)
+        OmniAuth.config.mock_auth[provider.to_sym] = type.to_sym
+      end
+    end
+  end
+end

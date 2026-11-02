@@ -3,14 +3,26 @@
 require 'simplecov'
 SimpleCov.start do
   add_filter '/spec/'
+  add_filter '/examples/'
   minimum_coverage 90
 end
 
-require 'ostruct'
-require 'omniauth/vitsme'
+require 'logger'
+require 'omniauth-vitsme'
+require 'omniauth/vitsme/test'
+require 'rack/session'
+require 'rack/test'
 require 'webmock/rspec'
+require_relative 'support/vits_me_stub'
 
 WebMock.disable_net_connect!
+
+OmniAuth.config.logger = Logger.new(nil)
+OmniAuth.config.allowed_request_methods = %i[get post]
+OmniAuth.config.request_validation_phase = nil
+OmniAuth.config.on_failure = lambda do |env|
+  [401, { 'content-type' => 'text/plain' }, [env['omniauth.error.type'].to_s]]
+end
 
 RSpec.configure do |config|
   config.example_status_persistence_file_path = '.rspec_status'

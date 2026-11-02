@@ -1,0 +1,13 @@
+en:
+  vitsme:
+    sign_in: "Sign in"
+    verify: "Verify my details"
+    signed_in: "You are signed in."
+    verified: "Your details are verified."
+    failures:
+      default: "Signing in did not work. Please try again."
+      access_denied: "Signing in was cancelled."
+      not_signed_in: "Sign in first, then verify your details."
+      identity_mismatch: "That answer was about a different account than the one signed in here."
+      unverified_identity: "This needs a verified account. Finish verifying, then try again."
+      nationality_gate_refused: "Only verified nationals of the required countries can join."

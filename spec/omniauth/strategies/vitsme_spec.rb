@@ -250,6 +250,52 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     end
   end
 
+  # OmniAuth's test mode skips vits.me but still calls the strategy's call_app!, so apps' tests exercise
+  # the real identity checks against OmniAuth::Vitsme::Test mocks.
+  describe 'in OmniAuth test mode' do
+    let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
+
+    around do |example|
+      OmniAuth.config.test_mode = true
+      example.run
+    ensure
+      OmniAuth.config.test_mode = false
+      OmniAuth.config.mock_auth.delete(:vitsme)
+    end
+
+    it 'passes a mock of the person signed in' do
+      OmniAuth::Vitsme::Test.mock_auth(uid: solid)
+      signed_in_as(solid)
+      get '/auth/vitsme/callback'
+
+      expect(last_response.status).to eq(200)
+    end
+
+    it 'refuses a mock of anyone else' do
+      OmniAuth::Vitsme::Test.mock_auth
+      signed_in_as(solid)
+      get '/auth/vitsme/callback'
+
+      expect(last_response.body).to eq('identity_mismatch')
+    end
+
+    it 'matches a mocked earlier uid' do
+      OmniAuth::Vitsme::Test.mock_auth(defunct_uids: [solid])
+      signed_in_as(solid)
+      get '/auth/vitsme/callback'
+
+      expect(last_response.status).to eq(200)
+    end
+
+    it 'refuses a mocked pending identity' do
+      OmniAuth::Vitsme::Test.mock_auth(identity: :fluid)
+      signed_in_as(solid)
+      get '/auth/vitsme/callback'
+
+      expect(last_response.body).to eq('unverified_identity')
+    end
+  end
+
   describe 'refusals from vits.me' do
     def refused_with(**params)
       get '/auth/vitsme'

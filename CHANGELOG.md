@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 0.2.0
+## [0.2.1] - 2026-11-02
+
+### Fixed
+
+- The docs claimed OmniAuth's test mode skips the identity checks. It doesn't: test mode skips the
+  trip to vits.me, but `expected_uid` and `require_verified` still judge the mocked answer. The
+  README, the test helper and the skill now say so, and four specs pin the behaviour. The examples
+  mock someone else to get `:identity_mismatch` and keep `mock_failure` for refusals only vits.me
+  makes.
+
+## [0.2.0] - 2026-11-02
 
 A rewrite that brings the gem up to the vits.me platform. **Breaking:** the auth hash changed shape,
 and Ruby ≥ 3.3 is required.

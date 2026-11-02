@@ -12,12 +12,13 @@ module OmniAuth
     #   OmniAuth.config.test_mode = true
     #   OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })              # provider :vitsme
     #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })
-    #   OmniAuth::Vitsme::Test.mock_failure(:verify, :identity_mismatch)
+    #   OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
     #
     # The auth hash is built by the same code as the real strategy's (AuthShape), so `info`, `extra`
-    # and the typed claims look exactly as they will in production. OmniAuth's test mode skips the
-    # strategy itself, so the identity checks (expected_uid, require_verified) do not run against a
-    # mock — cover your handling of them with mock_failure.
+    # and the typed claims look exactly as they will in production. Test mode skips the trip to vits.me
+    # but still runs the strategy's identity checks (expected_uid, require_verified) on the mock: mock
+    # someone other than the signed-in person to see :identity_mismatch. mock_failure is for refusals
+    # only vits.me makes (:nationality_gate_refused, :access_denied).
     module Test
       module_function
 

@@ -231,12 +231,17 @@ OmniAuth.config.test_mode = true
 OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })                 # :vitsme
 OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: user.vitsme_uid, claims: { name: "Jane D." })
 OmniAuth::Vitsme::Test.mock_auth(identity: :fluid)                               # pending signup
-OmniAuth::Vitsme::Test.mock_failure(:vitsme_verify, :identity_mismatch)
+OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: someone_else_uid)                   # → :identity_mismatch
+OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
 ```
 
-Mocks are built by the same code as real sign-ins, so they have the real shape and types. Unknown
-claims raise. OmniAuth's test mode bypasses the strategy, so `expected_uid` doesn't run against a mock:
-cover your failure handling with `mock_failure`.
+Mocks are built by the same code as real sign-ins, so they have the real shape and types, and
+unknown claims raise. Test mode skips the round trip to vits.me, but the strategy's identity checks
+still run on the mock. A verify provider's `expected_uid` and `require_verified` judge the mocked
+answer exactly as they would a real one: mock the signed-in person's uid to pass, or someone else's
+to see `:identity_mismatch`. A mocked earlier uid (`defunct_uids:`) matches as it does in
+production. `mock_failure` simulates refusals that only vits.me can make, such as
+`:nationality_gate_refused` or `:access_denied`.
 
 [examples/rails/app.rb](examples/rails/app.rb) is a one-file Rails app using sign-in, a gate and
 verification. The test suite boots it against a stubbed vits.me.

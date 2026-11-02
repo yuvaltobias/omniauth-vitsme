@@ -57,7 +57,8 @@ into the existing ones rather than keeping two. The essentials:
 require "omniauth/vitsme/test"
 OmniAuth.config.test_mode = true
 OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })
-OmniAuth::Vitsme::Test.mock_failure(:vitsme_verify, :identity_mismatch)
+OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: OmniAuth::Vitsme::Test.uid) # someone else → :identity_mismatch
+OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
 ```
 
 Write request specs covering:

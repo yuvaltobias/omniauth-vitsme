@@ -69,6 +69,10 @@ Write request specs covering:
 
 ## 6. Hand over
 
-Tell the person they need client credentials and redirect-URI registration from the vits.me team.
-The generator prints the exact callback URLs. Set `VITSME_CLIENT_ID` / `VITSME_CLIENT_SECRET`, and
-use `environment: :development` against a local vits.me (`https://vitsme.localhost`).
+Tell the person to register the site at https://vits.me/developer with their verified account (you
+can't: it takes their pincode). They give it a name, its homepage, the callback URLs the generator
+printed (and `http://127.0.0.1:<port>/…` ones for local development), and tick the details the app
+asks for, which must cover every scope you configured. The client secret is shown once, so they put
+it straight into `VITSME_CLIENT_SECRET`, with `VITSME_CLIENT_ID` beside it. The site starts in
+testing; a privacy policy URL and a contact make it public. Use `environment: :development` against a
+local vits.me (`https://vitsme.localhost`).

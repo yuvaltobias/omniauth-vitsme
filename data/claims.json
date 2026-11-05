@@ -164,6 +164,11 @@
       "error": "access_denied",
       "omniauth_failure": "identity_mismatch",
       "description": "The site said whom it expected (claims sub value) and a different person is signed in at vits.me."
+    },
+    "application_suspended": {
+      "error": "access_denied",
+      "omniauth_failure": "site_suspended",
+      "description": "vits.me has suspended this site. Nobody can sign in to it until the suspension is lifted; its owner sees why on the site's page in the developer area."
     }
   },
   "lifetimes_seconds": {

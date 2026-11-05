@@ -313,6 +313,10 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
       expect(refused_with(error: 'access_denied', vitsme_error: 'subject_mismatch')).to eq('identity_mismatch')
     end
 
+    it 'names a site vits.me has suspended' do
+      expect(refused_with(error: 'access_denied', vitsme_error: 'application_suspended')).to eq('site_suspended')
+    end
+
     it 'passes any other denial through as OmniAuth reports it' do
       expect(refused_with(error: 'access_denied')).to eq('access_denied')
     end

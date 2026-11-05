@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.3.0] - 2026-11-05
+
+### Added
+
+- vits.me can suspend a site. Its sign-ins come back as the new failure type `:site_suspended`
+  (`vitsme_error=application_suspended`, in `data/claims.json`'s refusals), and the generator's
+  locales carry a message for it that doesn't name vits.me.
+
+### Changed
+
+- Credentials no longer come from the vits.me team: any verified person registers a site at
+  vits.me/developer. The README, AGENTS.md and the skill say how, including the testing and public
+  states, loopback redirect URIs for local development, and the secret shown once. AGENTS.md adds that
+  a site may ask only for the scopes it registered; vits.me now sends such a request back as
+  `:invalid_scope`, listed in the README's failure types.
+
 ## [0.2.1] - 2026-11-02
 
 ### Fixed

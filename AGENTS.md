@@ -38,10 +38,16 @@ person's verified details to another.
    end users.
 10. **Handle every failure type** in [README.md#failure-types](README.md#failure-types):
     `not_signed_in`, `identity_mismatch`, `unverified_identity`, `nationality_gate_refused`,
-    `access_denied`.
+    `site_suspended`, `access_denied`.
+11. **Ask only for scopes the site registered.** Its page at vits.me/developer sets which it may ask
+    for, and vits.me refuses a request for any other. `il_government_id_number` is enabled by vits.me
+    on request, per site.
 
 ## Doing the work
 
+- Credentials: the person registers the site at [vits.me/developer](https://vits.me/developer) with
+  their verified account. You can't do it for them: it takes their pincode, and the secret is shown
+  to them once.
 - Rails: `bin/rails g omniauth_vitsme:install` (see `--help`) writes the initializer, controller,
   locales, button and migration correctly. Prefer it to hand-writing.
 - Tests: `require "omniauth/vitsme/test"`, then `OmniAuth::Vitsme::Test.mock_auth(...)` /

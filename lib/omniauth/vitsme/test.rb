@@ -18,7 +18,7 @@ module OmniAuth
     # and the typed claims look exactly as they will in production. Test mode skips the trip to vits.me
     # but still runs the strategy's identity checks (expected_uid, require_verified) on the mock: mock
     # someone other than the signed-in person to see :identity_mismatch. mock_failure is for refusals
-    # only vits.me makes (:nationality_gate_refused, :access_denied).
+    # only vits.me makes (:nationality_gate_refused, :site_suspended, :access_denied).
     module Test
       module_function
 
@@ -58,7 +58,7 @@ module OmniAuth
       end
 
       # Makes the next callback for `provider` fail with `type` (e.g. :identity_mismatch, :not_signed_in,
-      # :unverified_identity, :nationality_gate_refused, :access_denied).
+      # :unverified_identity, :nationality_gate_refused, :site_suspended, :access_denied).
       def mock_failure(provider = :vitsme, type = :access_denied)
         OmniAuth.config.mock_auth[provider.to_sym] = type.to_sym
       end

@@ -11,3 +11,4 @@ en:
       identity_mismatch: "That answer was about a different account than the one signed in here."
       unverified_identity: "This needs a verified account. Finish verifying, then try again."
       nationality_gate_refused: "Only verified nationals of the required countries can join."
+      site_suspended: "Signing in is unavailable right now. Please try again later."

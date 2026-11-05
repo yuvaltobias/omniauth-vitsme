@@ -26,7 +26,7 @@ rules built in.
 
 ```ruby
 # Gemfile
-gem "omniauth-vitsme", "~> 0.2"
+gem "omniauth-vitsme", "~> 0.3"
 gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
@@ -52,8 +52,12 @@ end
 <%= button_to "Sign in", "/auth/vitsme", method: :post, data: { turbo: false } %>
 ```
 
-Client credentials come from the vits.me team: there is no self-service registration yet. Register
-`https://<your host>/auth/vitsme/callback` (and one callback per extra provider) as redirect URIs.
+Register your site at [vits.me/developer](https://vits.me/developer): any verified person can, after
+accepting the developer terms. Add `https://<your host>/auth/vitsme/callback` (and one callback per
+extra provider) as redirect URIs, plus `http://127.0.0.1:<port>/auth/vitsme/callback` for local
+development. The client secret is shown once, when it is created or rotated. A new site starts in
+testing: it works end to end, and the sign-in screen tells people it is still being tested until you
+add a privacy policy URL and a contact and make it public.
 
 ## Environments
 
@@ -178,6 +182,8 @@ OmniAuth sends failures to `OmniAuth.config.on_failure` (in Rails, `/auth/failur
 | `:identity_mismatch` | The answer was about someone other than `expected_uid`, whether caught by vits.me or by the callback. |
 | `:unverified_identity` | A pending (`fluid_`) identity, refused by `require_verified`. |
 | `:nationality_gate_refused` | The person doesn't hold a nationality the gate requires (or is unverified). |
+| `:site_suspended` | vits.me has suspended your site; nobody can sign in until it is lifted. Your site's page in the developer area says why. |
+| `:invalid_scope` | The app asked for a scope its registration doesn't include. Tick it on your site's page at vits.me/developer (the Israeli ID number needs vits.me to enable it). |
 | `:access_denied` | Any other refusal, e.g. the person cancelled. |
 | others | From omniauth_openid_connect: `:csrf_detected`, `:invalid_grant`, `:timeout`, … |
 
@@ -241,7 +247,7 @@ still run on the mock. A verify provider's `expected_uid` and `require_verified`
 answer exactly as they would a real one: mock the signed-in person's uid to pass, or someone else's
 to see `:identity_mismatch`. A mocked earlier uid (`defunct_uids:`) matches as it does in
 production. `mock_failure` simulates refusals that only vits.me can make, such as
-`:nationality_gate_refused` or `:access_denied`.
+`:nationality_gate_refused`, `:site_suspended` or `:access_denied`.
 
 [examples/rails/app.rb](examples/rails/app.rb) is a one-file Rails app using sign-in, a gate and
 verification. The test suite boots it against a stubbed vits.me.
@@ -250,7 +256,7 @@ verification. The test suite boots it against a stubbed vits.me.
 
 | Option | Default | |
 |---|---|---|
-| `client_id`, `client_secret` | required | From the vits.me team |
+| `client_id`, `client_secret` | required | From your site's page at [vits.me/developer](https://vits.me/developer) |
 | `environment` | `:production` | `:production`, `:staging`, `:development` |
 | `issuer` | from `environment` | |
 | `scope` | `[:openid]` | Validated against [data/claims.json](data/claims.json) |

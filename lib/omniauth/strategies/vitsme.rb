@@ -62,7 +62,7 @@ module OmniAuth
       # others. The callback checks either way.
       option :send_expected_uid, true
 
-      FAILURES = %i[identity_mismatch not_signed_in unverified_identity nationality_gate_refused].freeze
+      FAILURES = %i[identity_mismatch not_signed_in unverified_identity nationality_gate_refused site_suspended].freeze
 
       def initialize(app, *args, &)
         super

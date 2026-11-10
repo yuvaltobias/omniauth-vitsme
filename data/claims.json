@@ -1,5 +1,5 @@
 {
-  "catalog_version": 2,
+  "catalog_version": 3,
   "about": "Every scope, claim, gate and refusal reason a vits.me relying party can use. Source of truth for omniauth-vitsme (OmniAuth::Vitsme::Catalog) and for agents and developers choosing scopes. Mirrors the vits.me server: config/initializers/doorkeeper.rb (scopes), config/initializers/doorkeeper_openid_connect.rb (claims), config/initializers/authorizations_controller_extension.rb (value domains, gates, refusals).",
   "conventions": {
     "delivery": "Every claim except sub comes from the UserInfo endpoint, never the ID token. omniauth-vitsme fetches UserInfo on every sign-in.",
@@ -149,6 +149,14 @@
       "incompatible_with": ["fluid"]
     }
   },
+  "knots": {
+    "scope_pattern": "^knot:[^:\\s]+:\\S+$",
+    "scope_format": "knot:<knot>:<name>",
+    "description": "Claims from a partner service (a KNOT) that verifies what vits.me does not, served to your site directly. Partners come and go, so none is listed here: GET <issuer>/knot/scopes lists the active KNOT scopes, each with what its answer holds and a documentation URL (OmniAuth::Vitsme::Knot.scopes), and your site's page at vits.me/developer shows the ones staff granted it. The person agrees on vits.me's consent screen; left on, the agreement stands for a year and can be withdrawn at any time. When a partner leaves, its consents end and you get consent_withdrawn with reason retired.",
+    "auth_hash": "extra.knot_claims (by claim name, fetched and verified during the callback) and extra.knot_errors (by source). Missing is unknown, never false.",
+    "fresh_claims": "While the consent stands: OmniAuth::Vitsme::Knot.fresh_claims(uid:, scopes:, client_id:, client_secret:). Raises ConsentRequired once it no longer does.",
+    "events": "Set a change notifications URL on your registration; verify each POST with OmniAuth::Vitsme::Events.verify! (types claims_changed, consent_withdrawn with reason withdrawn or retired) and answer 202."
+  },
   "refusals": {
     "nationality_gate": {
       "error": "access_denied",
@@ -175,6 +183,7 @@
     "authorization_code": 5,
     "access_token": 5,
     "id_token": 5,
+    "knot_introduction": 30,
     "refresh_token": null
   }
 }

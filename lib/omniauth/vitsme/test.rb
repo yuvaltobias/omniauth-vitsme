@@ -13,6 +13,7 @@ module OmniAuth
     #   OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })              # provider :vitsme
     #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })
     #   OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
+    #   OmniAuth::Vitsme::Test.mock_auth(knot_claims: { '<claim>' => <what the partner answers> })
     #
     # The auth hash is built by the same code as the real strategy's (AuthShape), so `info`, `extra`
     # and the typed claims look exactly as they will in production. Test mode skips the trip to vits.me
@@ -40,15 +41,17 @@ module OmniAuth
         info.merge(claims)
       end
 
-      def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [])
+      def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [],
+                    knot_claims: {}, knot_errors: {})
         uid ||= self.uid(identity)
         raw = raw_info(uid: uid, claims: claims, defunct_uids: defunct_uids, fluid_uids: fluid_uids)
+        knot = Knot::Result.new(knot_claims.transform_keys(&:to_s), knot_errors.transform_keys(&:to_s))
         OmniAuth::AuthHash.new(
           provider: provider.to_s,
           uid: uid,
           info: AuthShape.info(uid, raw),
           credentials: { id_token: 'test.id.token', scope: 'openid' },
-          extra: AuthShape.extra(uid, raw)
+          extra: AuthShape.extra(uid, raw, knot: knot)
         )
       end
 

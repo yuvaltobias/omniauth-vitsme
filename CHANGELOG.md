@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
+### Added
+
+- KNOT claims, from partner services. The gem knows no partner: any `knot:<knot>:<name>` scope passes
+  the boot-time scope check, and vits.me refuses one your site wasn't granted. When UserInfo carries
+  KNOT sources, the strategy fetches each partner's answer during the callback, verifies its signature
+  against the source's `jwks_uri`, issuer, audience (your client_id) and `knot_txn`, and puts the claims
+  in `extra.knot_claims` as sent. A partner that can't be asked shows in `extra.knot_errors` and doesn't
+  fail the sign-in.
+- `OmniAuth::Vitsme::Knot.scopes` reads the active KNOT scopes as vits.me describes them now (what each
+  answer holds, and a documentation link).
+- `OmniAuth::Vitsme::Knot.fresh_claims` asks for KNOT claims again without the person, while their
+  standing consent holds, raising `ConsentRequired` once it doesn't.
+- `OmniAuth::Vitsme::Events.verify!` verifies the change events vits.me pushes to a site's change
+  notifications URL: `:claims_changed`, and `:consent_withdrawn` with a `reason` of `withdrawn` or
+  `retired` (the partner or scope left).
+- `OmniAuth::Vitsme::Test.mock_auth(knot_claims:)`.
+- `data/claims.json` has a generic `knots` section and the introduction's 30-second lifetime
+  (catalog 3). It lists no partner.
+
+### Changed
+
+- `extra.raw_info` no longer carries `_claim_names`, `_claim_sources` or `knot_txn`: they are spent
+  during the callback.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'omniauth/vitsme/knot'
 
 module OmniAuth
   module Vitsme
@@ -31,8 +32,10 @@ module OmniAuth
         GATE_PATTERN.match?(scope.to_s)
       end
 
+      # KNOT scopes (knot:<knot>:<name>) are registered data on vits.me, not catalog entries: any well-formed
+      # one is accepted here, and vits.me refuses one your site was not granted.
       def known_scope?(scope)
-        scopes.include?(scope.to_s) || gate_scope?(scope)
+        scopes.include?(scope.to_s) || gate_scope?(scope) || Knot.scope?(scope)
       end
 
       # The OmniAuth failure type for a `vitsme_error` refusal reason, or nil for an unknown one.

@@ -17,6 +17,9 @@ module OmniAuth
     #            expected_uid: ->(env) { ... },           # "details about a signed-in person" only
     #            require_verified: true                   # refuse pending (fluid_) identities
     #
+    # A KNOT scope (knot:<knot>:<name>) asks a partner service; its claims arrive verified in
+    # extra.knot_claims (OmniAuth::Vitsme::Knot).
+    #
     # See README.md for the auth hash, the failure types and the rules (the uid is private).
     class Vitsme < OpenIDConnect
       option :name, 'vitsme'
@@ -80,7 +83,17 @@ module OmniAuth
       end
 
       def extra
-        OmniAuth::Vitsme::AuthShape.extra(uid, raw_info)
+        OmniAuth::Vitsme::AuthShape.extra(uid, raw_info, knot: knot)
+      end
+
+      # The KNOT sources in UserInfo, fetched and verified now: their introductions live 30 seconds.
+      def knot
+        return @knot if defined?(@knot)
+
+        @knot = (if raw_info['_claim_sources']
+                   OmniAuth::Vitsme::Knot.resolve(raw_info,
+                                                  client_id: client_options.identifier)
+                 end)
       end
 
       # vits.me issues no refresh token and its access token lapses five seconds after issue: everything

@@ -14,6 +14,7 @@ require 'rack/session'
 require 'rack/test'
 require 'webmock/rspec'
 require_relative 'support/vits_me_stub'
+require_relative 'support/knot_stub'
 
 WebMock.disable_net_connect!
 
@@ -31,5 +32,6 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
   config.order = :random
+  config.before { OmniAuth::Vitsme::Keys.clear! }
   Kernel.srand config.seed
 end

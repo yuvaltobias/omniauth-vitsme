@@ -41,9 +41,12 @@ RSpec.describe OmniAuth::Vitsme::Test do
     expect(OmniAuth.config.mock_auth[:vitsme]).to eq(:identity_mismatch)
   end
 
-  it 'mocks KNOT claims in the real shape' do
-    auth = described_class.auth_hash(knot_claims: { 'widgets' => KnotStub::WIDGETS })
-    expect(auth.extra.knot_claims).to eq('widgets' => KnotStub::WIDGETS)
-    expect(auth.extra.knot_errors).to eq({})
+  it "mocks a partner's answer in the shape the vitsme_partner strategy gives" do
+    described_class.mock_partner(:contacts, partner: PartnerStub::ISSUER, claims: { email: PartnerStub::EMAILS },
+                                            refresh_token: 'r1')
+    auth = OmniAuth.config.mock_auth[:contacts]
+    expect(auth.uid).to start_with('ks_')
+    expect(auth.extra.claims).to eq('email' => PartnerStub::EMAILS)
+    expect(auth.credentials.refresh_token).to eq('r1')
   end
 end

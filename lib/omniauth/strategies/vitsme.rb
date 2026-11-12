@@ -17,8 +17,7 @@ module OmniAuth
     #            expected_uid: ->(env) { ... },           # "details about a signed-in person" only
     #            require_verified: true                   # refuse pending (fluid_) identities
     #
-    # A KNOT scope (knot:<knot>:<name>) asks a partner service; its claims arrive verified in
-    # extra.knot_claims (OmniAuth::Vitsme::Knot).
+    # A partner of vits.me (a KNOT) is asked with the vitsme_partner strategy, not here.
     #
     # See README.md for the auth hash, the failure types and the rules (the uid is private).
     class Vitsme < OpenIDConnect
@@ -83,21 +82,12 @@ module OmniAuth
       end
 
       def extra
-        OmniAuth::Vitsme::AuthShape.extra(uid, raw_info, knot: knot)
-      end
-
-      # The KNOT sources in UserInfo, fetched and verified now: their introductions live 30 seconds.
-      def knot
-        return @knot if defined?(@knot)
-
-        @knot = (if raw_info['_claim_sources']
-                   OmniAuth::Vitsme::Knot.resolve(raw_info,
-                                                  client_id: client_options.identifier)
-                 end)
+        OmniAuth::Vitsme::AuthShape.extra(uid, raw_info)
       end
 
       # vits.me issues no refresh token and its access token lapses five seconds after issue: everything
-      # it can tell you is already in `info` and `extra`.
+      # it can tell you is already in `info` and `extra`. Keep the ID token: it is what you send a partner
+      # as the hint (the vitsme_partner strategy's `id_token`).
       def credentials
         { id_token: access_token.id_token, scope: access_token.scope }
       end

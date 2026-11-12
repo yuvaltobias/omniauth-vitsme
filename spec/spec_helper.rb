@@ -14,7 +14,7 @@ require 'rack/session'
 require 'rack/test'
 require 'webmock/rspec'
 require_relative 'support/vits_me_stub'
-require_relative 'support/knot_stub'
+require_relative 'support/partner_stub'
 
 WebMock.disable_net_connect!
 

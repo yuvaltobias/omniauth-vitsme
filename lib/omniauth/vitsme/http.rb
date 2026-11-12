@@ -31,6 +31,13 @@ module OmniAuth
         request(req)
       end
 
+      def post_json(url, body, headers: {})
+        req = Net::HTTP::Post.new(URI(url),
+                                  headers.merge('Content-Type' => 'application/json', 'Accept' => 'application/json'))
+        req.body = JSON.generate(body)
+        request(req)
+      end
+
       def request(req)
         uri = req.uri
         response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https',

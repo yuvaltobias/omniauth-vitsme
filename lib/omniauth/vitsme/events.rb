@@ -2,22 +2,20 @@
 
 require 'omniauth/vitsme/jws'
 require 'omniauth/vitsme/issuers'
+require 'omniauth/vitsme/partner'
 
 module OmniAuth
   module Vitsme
-    # The change events vits.me POSTs to your site's change notifications URL (Security Event Tokens,
-    # RFC 8417, pushed per RFC 8935 with Content-Type application/secevent+jwt), while someone keeps a
-    # standing consent with your site:
+    # Change events a partner of vits.me (a KNOT) pushes to the events address you registered with it
+    # (Security Event Tokens, RFC 8417, pushed per RFC 8935): only partners that keep a standing consent
+    # send them, and only about people who gave your site one.
     #
-    #   :claims_changed     what a KNOT would tell you about them changed: ask again (Knot.fresh_claims)
-    #   :consent_withdrawn  they stopped sharing (reason "withdrawn"), or the partner or scope left
-    #                       (reason "retired"): let go of what you were given
+    #   :claims_changed     what the partner would tell you about them changed: ask again
+    #                       (Partner.fresh_claims with the refresh token you hold)
+    #   :consent_withdrawn  they stopped it, or their account ended: forget what you had, and the refresh token
     #
-    # An event never carries values. Answer 202; anything else is retried. Events are idempotent and may
-    # arrive twice.
-    #
-    #   event = OmniAuth::Vitsme::Events.verify!(request.raw_post, client_id: ENV['VITSME_APP_ID'])
-    #   person = Person.find_by(vitsme_uid: event.uid)  # the uid is private, as everywhere
+    # An event names the person by the partner's identifier for them at your site (the `uid` its answers
+    # gave you), never says what changed, and may arrive twice. Answer 202.
     module Events
       TYPES = {
         'https://vits.me/secevent/knot/claims-changed' => :claims_changed,
@@ -28,24 +26,26 @@ module OmniAuth
 
       class Invalid < StandardError; end
 
-      Event = Struct.new(:type, :uid, :scopes, :reason, :id, :issued_at, keyword_init: true)
+      Event = Struct.new(:type, :uid, :scopes, :id, :issued_at, keyword_init: true)
 
       module_function
 
-      def verify!(token, client_id:, environment: :production, issuer: nil, now: Time.now)
-        issuer ||= Vitsme.issuer(environment)
-        claims = JWS.verify!(token, jwks_uri: "#{issuer}/oauth/discovery/keys", iss: issuer, aud: client_id,
+      # Verifies an event from `partner` (its issuer) addressed to your site, and that vits.me still lists
+      # the partner as active.
+      def verify!(token, partner:, client_id:, environment: :production, issuer: nil, now: Time.now)
+        Partner.trusted!(partner, issuer || Vitsme.issuer(environment))
+        claims = JWS.verify!(token, jwks_uri: Partner.metadata(partner).fetch('jwks_uri'), iss: partner, aud: client_id,
                                     typ: 'secevent+jwt', expiring: false, now: now)
         raise Invalid, 'stale or future event' unless (claims['iat'].to_i - now.to_i).abs <= MAX_AGE
 
-        event(claims, issuer)
-      rescue JWS::Invalid, Keys::Unavailable => e
+        event(claims)
+      rescue JWS::Invalid, Keys::Unavailable, Partner::Unavailable, Partner::Untrusted, KeyError => e
         raise Invalid, e.message
       end
 
-      def event(claims, issuer)
+      def event(claims)
         sub_id = claims['sub_id']
-        unless sub_id.is_a?(Hash) && sub_id['format'] == 'iss_sub' && sub_id['iss'] == issuer
+        unless sub_id.is_a?(Hash) && sub_id['format'] == 'opaque' && sub_id['id'].to_s != ''
           raise Invalid,
                 'unsupported subject'
         end
@@ -53,9 +53,8 @@ module OmniAuth
         type_uri, body = Hash(claims['events']).find { |uri, _| TYPES.key?(uri) }
         raise Invalid, 'unsupported event' unless type_uri
 
-        body = Hash(body)
-        Event.new(type: TYPES[type_uri], uid: sub_id['sub'], scopes: body['scope'].to_s.split, reason: body['reason'],
-                  id: claims['jti'], issued_at: Time.at(claims['iat'].to_i))
+        Event.new(type: TYPES[type_uri], uid: sub_id['id'], scopes: Hash(body)['scope'].to_s.split, id: claims['jti'],
+                  issued_at: Time.at(claims['iat'].to_i))
       end
     end
   end

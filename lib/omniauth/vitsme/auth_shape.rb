@@ -7,8 +7,6 @@ module OmniAuth
     module AuthShape
       SOLID_PREFIX = 'solid_'
       FLUID_PREFIX = 'fluid_'
-      # Spent as soon as the strategy fetched them, and none of your app's business afterwards.
-      KNOT_SOURCE_KEYS = %w[_claim_names _claim_sources knot_txn].freeze
 
       module_function
 
@@ -26,9 +24,7 @@ module OmniAuth
         }.compact
       end
 
-      # `knot` is the Knot::Result for this sign-in's KNOT sources, if it had any.
-      def extra(uid, raw_info, knot: nil)
-        knot ||= Knot::Result.empty
+      def extra(uid, raw_info)
         {
           identity: identity_kind(uid),
           # Look a returning person up by every one of these, current first: a record keyed by a defunct
@@ -37,11 +33,7 @@ module OmniAuth
           # Tentative accounts (keyed by a pending signup's FLUID) to merge into this person.
           fluid_uids: Array(raw_info['fluid']),
           claims: claims(raw_info),
-          # Claims from KNOTs, by claim name, already fetched and verified ({ "<claim>" => <answer> }),
-          # and why a KNOT could not be asked, by source. A claim missing here is unknown, never false.
-          knot_claims: knot.claims,
-          knot_errors: knot.errors,
-          raw_info: raw_info.except(*KNOT_SOURCE_KEYS)
+          raw_info: raw_info
         }
       end
 

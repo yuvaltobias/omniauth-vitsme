@@ -30,8 +30,8 @@ person's verified details to another.
 6. **`fluid_` means unverified.** Without the `fluid` scope you never see one. With it, give such
    people a limited, tentative account and merge it when `extra.fluid_uids` shows up on a verified
    sign-in.
-7. **Read everything in the callback.** Tokens live 5 seconds and there is no refresh token. The one
-   exception is KNOT claims, below.
+7. **Read everything in the callback.** Tokens live 5 seconds and there is no refresh token. Keep
+   `auth.credentials.id_token`: it is the hint a partner needs (rule 12).
 8. **Find returning people by `extra.lookup_uids`** (plus `fluid_uids` with FLUID), current first, and
    move a record found under an older uid to `auth.uid`.
 9. **User-facing copy says "verified"**, not "vits.me-verified". There is no need to name vits.me to
@@ -42,15 +42,17 @@ person's verified details to another.
 11. **Ask only for scopes the site registered.** Its page at vits.me/developer sets which it may ask
     for, and vits.me refuses a request for any other. `il_government_id_number` is enabled by vits.me
     on request, per site.
-12. **KNOT claims come from partners, and partners come and go.** Don't hard-code a partner or the
-    shape of its claims from memory: read the scope's description and documentation link from
-    `OmniAuth::Vitsme::Knot.scopes` (or the site's page at vits.me/developer). Claims arrive in
-    `extra.knot_claims`, already verified; missing is unknown, and a partner that can't be asked shows
-    in `extra.knot_errors` without failing the sign-in. While the person's consent stands, refresh with
-    `OmniAuth::Vitsme::Knot.fresh_claims`, and handle `ConsentRequired` by letting go of what you had.
-13. **Verify every change event** with `OmniAuth::Vitsme::Events.verify!` before acting on it, answer
-    `202`, and treat it as idempotent. It never carries values: refetch on `:claims_changed`, forget on
-    `:consent_withdrawn`, whose `reason` is `withdrawn` (the person) or `retired` (the partner left).
+12. **Partners (KNOTs) are asked directly, not through vits.me.** Use `provider :vitsme_partner` with the
+    partner's issuer as vits.me lists it (`OmniAuth::Vitsme::Partner.listing`), its own scope names from its
+    documentation, and `id_token:` returning the vits.me ID token you kept for the signed-in person. Never ask
+    a partner vits.me does not list as active, never send the ID token unencrypted (the strategy encrypts
+    it), and never treat the partner's `uid` as the vits.me one: it is the partner's own identifier for the
+    person at your site. Ask from a button, when you need it. A scope the person did not give comes back as
+    an empty list. Refresh with `OmniAuth::Vitsme::Partner.fresh_claims` and keep the next refresh token;
+    `Refused` means the consent ended: let go of what you had.
+13. **Verify every partner event** with `OmniAuth::Vitsme::Events.verify!(token, partner:, client_id:)`
+    before acting on it, answer `202`, and treat it as idempotent. It never carries values: refetch on
+    `:claims_changed`, forget on `:consent_withdrawn`.
 
 ## Doing the work
 

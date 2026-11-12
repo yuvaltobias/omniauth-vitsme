@@ -330,30 +330,7 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     expect(token.with(body: hash_including('code_verifier' => /\A\h{128}\z/))).to have_been_requested
   end
 
-  describe 'KNOT claims' do
-    let(:provider_options) { { scope: %i[openid knot:acme:widgets] } }
-    let(:userinfo) { { 'sub' => solid, 'solid' => solid }.merge(KnotStub.distributed) }
-
-    it 'accepts a KNOT scope at boot and asks vits.me for it' do
-      get '/auth/vitsme'
-      expect(authorize_query.fetch('scope').split).to include('knot:acme:widgets')
-    end
-
-    it 'fetches the KNOT during the callback and hands over its verified claims, not the spent sources' do
-      KnotStub.stub
-      sign_in
-      expect(last_response).to be_ok
-      expect(auth.dig('extra', 'knot_claims')).to eq('widgets' => KnotStub::WIDGETS)
-      expect(auth.dig('extra', 'knot_errors')).to eq({})
-      expect(auth.dig('extra', 'raw_info').keys).not_to include('_claim_sources', '_claim_names', 'knot_txn')
-    end
-
-    it 'signs the person in all the same when the KNOT cannot be asked, saying why' do
-      KnotStub.stub(status: 503)
-      sign_in
-      expect(last_response).to be_ok
-      expect(auth.dig('extra', 'knot_claims')).to eq({})
-      expect(auth.dig('extra', 'knot_errors')).to eq('acme' => 'HTTP 503')
-    end
+  it "refuses a partner's scope at boot: partners are asked with the vitsme_partner strategy" do
+    expect { strategy(scope: %i[openid knot:acme:widgets]) }.to raise_error(ArgumentError, /unknown scope/)
   end
 end

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+### Changed (breaking)
+
+- Partners of vits.me (KNOTs) are asked directly, as their own OAuth servers, not through vits.me. The new
+  `vitsme_partner` strategy pushes the request (RFC 9126) with PKCE and the person's hint, the vits.me ID
+  token you kept for them encrypted to vits.me's `use: enc` key, and sends the person to the partner. The
+  callback redeems the code and fetches the claims, verified against the partner's keys, issuer and your
+  client id: `uid` is the partner's identifier for the person at your site, `extra.claims` the answer, and
+  `credentials.refresh_token` is there when the partner keeps a standing consent.
+- `OmniAuth::Vitsme::Partner`: `listing` and `trusted!` (vits.me's list of partners, and only active
+  ones are asked or believed), `metadata`, `software_statement`, `register` (RFC 7591), `fresh_claims`.
+- `OmniAuth::Vitsme::Events.verify!` now verifies a partner's event: `partner:` and `client_id:`, with
+  the person named by the partner's own identifier (`sub_id` format `opaque`).
+- `OmniAuth::Vitsme::Test.mock_partner` and `.partner_auth_hash`.
+
+### Removed
+
+- KNOT scopes on the vits.me sign-in (`knot:<knot>:<name>`), `extra.knot_claims`, `extra.knot_errors`,
+  `OmniAuth::Vitsme::Knot` (`scopes`, `resolve`, `fresh_claims`) and `Test.mock_auth(knot_claims:)`:
+  vits.me no longer introduces sites to partners or relays their events.
+
+
 ## [0.4.0] - 2026-11-10
 
 ### Added

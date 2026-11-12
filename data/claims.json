@@ -150,12 +150,10 @@
     }
   },
   "knots": {
-    "scope_pattern": "^knot:[^:\\s]+:\\S+$",
-    "scope_format": "knot:<knot>:<name>",
-    "description": "Claims from a partner service (a KNOT) that verifies what vits.me does not, served to your site directly. Partners come and go, so none is listed here: GET <issuer>/knot/scopes lists the active KNOT scopes, each with what its answer holds and a documentation URL (OmniAuth::Vitsme::Knot.scopes), and your site's page at vits.me/developer shows the ones staff granted it. The person agrees on vits.me's consent screen; left on, the agreement stands for a year and can be withdrawn at any time. When a partner leaves, its consents end and you get consent_withdrawn with reason retired.",
-    "auth_hash": "extra.knot_claims (by claim name, fetched and verified during the callback) and extra.knot_errors (by source). Missing is unknown, never false.",
-    "fresh_claims": "While the consent stands: OmniAuth::Vitsme::Knot.fresh_claims(uid:, scopes:, client_id:, client_secret:). Raises ConsentRequired once it no longer does.",
-    "events": "Set a change notifications URL on your registration; verify each POST with OmniAuth::Vitsme::Events.verify! (types claims_changed, consent_withdrawn with reason withdrawn or retired) and answer 202."
+    "description": "Claims from a partner service (a KNOT) that verifies what vits.me does not. Partners are OAuth servers of their own, asked directly with the vitsme_partner strategy, never through vits.me: none is listed here. GET <issuer>/knot/partners lists them with their status; only an active one is asked or believed (OmniAuth::Vitsme::Partner.listing). Each documents its own scopes.",
+    "auth_hash": "uid is the partner's own identifier for the person at your site; extra.claims holds its answer, an empty list for a scope not given; credentials.refresh_token when it keeps a standing consent.",
+    "fresh_claims": "While the standing consent holds: OmniAuth::Vitsme::Partner.fresh_claims(partner:, client_id:, partner_secret:, refresh_token:, vitsme_issuer:). Raises Refused once it does not.",
+    "events": "Register an events address with the partner; verify each POST with OmniAuth::Vitsme::Events.verify!(token, partner:, client_id:) (claims_changed, consent_withdrawn) and answer 202."
   },
   "refusals": {
     "nationality_gate": {

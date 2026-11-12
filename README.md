@@ -26,7 +26,7 @@ rules built in.
 
 ```ruby
 # Gemfile
-gem "omniauth-vitsme", "~> 0.4"
+gem "omniauth-vitsme", "~> 0.5"
 gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
@@ -158,59 +158,89 @@ is still pending can sign in too:
   `extra.fluid_uids`. Merge the tentative account into the verified one, and drop tentative accounts
   nobody claimed after a week.
 
-## Partner services (KNOT claims)
+## Partner services (KNOTs)
 
-Some facts come from partner services rather than vits.me. Partners come and go, so this gem knows none
-of them: it handles whatever KNOT scopes your site chose to work with. The active ones, each with what its
-answer holds and a documentation link, are listed by vits.me; choose them under Partners on your site's
-form at vits.me/developer, and its page there shows the ones it holds:
+Some facts come from partner services rather than vits.me: the organizations a person acts for, the groups
+they belong to, a verified email address. Each partner is an OAuth server of its own. Your site asks it
+directly, as its client, and gets the answer straight from it. vits.me is not on the way: it signs the
+person in at the partner, with their pincode, and makes sure it is the person your site means. Partners
+come and go, so this gem knows none of them. vits.me lists the active ones, and each partner documents its
+own scopes:
 
 ```ruby
-OmniAuth::Vitsme::Knot.scopes   # [{ "scope" => "knot:<knot>:<name>", "knot" => "…", "claim" => "…",
-                                #    "title" => {…}, "description" => {…}, "documentation_url" => "…" }]
+OmniAuth::Vitsme::Partner.listing(OmniAuth::Vitsme.issuer(:production))
+# [{ "name" => "…", "issuer" => "https://…", "status" => "active", "scopes" => [{ "name" => "…", "title" => {…}, … }] }]
 ```
 
-Ask for one like any other scope:
+**Keep the ID token.** When your site signs a person in, keep `auth.credentials.id_token` with them. It is
+the hint you send a partner: encrypted to vits.me, so the partner cannot read it, and vits.me then lets
+nobody but that person answer. Without one there is nobody to ask about.
+
+**Register your site's callback for the partner** among its redirect addresses at vits.me/developer:
+partners send codes only to an address vits.me lists for your site. A partner that takes registrations
+(its metadata has a `registration_endpoint`) wants your site registered there once, with a software
+statement vits.me signs for it:
 
 ```ruby
-provider :vitsme, client_id: ENV["VITSME_APP_ID"], client_secret: ENV["VITSME_APP_SECRET"],
-                  scope: %i[openid knot:<knot>:<name>]
+statement = OmniAuth::Vitsme::Partner.software_statement(vitsme_issuer: OmniAuth::Vitsme.issuer(:production),
+                                                         client_id: ENV["VITSME_APP_ID"],
+                                                         client_secret: ENV["VITSME_APP_SECRET"],
+                                                         audience: "https://partner.example")
+OmniAuth::Vitsme::Partner.register(partner: "https://partner.example", software_statement: statement,
+                                   events_uri: "https://your.site/partner/events")
+# => { "client_id" => …, "client_secret" => "…" }   keep the secret: it is shown once
 ```
 
-The person agrees on vits.me's consent screen. During the callback the strategy fetches the partner's
-answer, verifies its signature, and hands you the claims as the partner sent them:
+A partner that takes none (`software_statement_required` in its metadata) gets a fresh statement with each
+request, which the strategy fetches for you.
+
+**Ask from a button of your own**, when you need what the partner holds, with your own explanation:
 
 ```ruby
-auth.extra.knot_claims  # { "<claim>" => <the partner's answer> }; its shape is in the partner's documentation
-auth.extra.knot_errors  # { "<knot>" => "HTTP 503" } when a partner could not be asked
+provider :vitsme_partner, name: :contacts,
+                          partner: "https://partner.example",          # its issuer, as vits.me lists it
+                          scope: %w[email],                             # its own scope names
+                          client_id: ENV["VITSME_APP_ID"], client_secret: ENV["VITSME_APP_SECRET"],
+                          partner_secret: ENV["PARTNER_SECRET"],        # only if you registered there
+                          id_token: ->(env) { Person.find_by(id: env["rack.session"]["person_id"])&.vitsme_id_token }
 ```
 
-A claim missing from `knot_claims` is unknown, never false. A partner that cannot be reached never
-fails the sign-in.
-
-**Fresh claims, without the person.** While they keep the consent (a year from their last agreement),
-ask again:
+The person signs in at the partner with their pincode, sees what your site asks for, turns on what to give
+and selects which. The callback hands you the answer, verified:
 
 ```ruby
-result = OmniAuth::Vitsme::Knot.fresh_claims(uid: person.vitsme_uid, scopes: %w[knot:<knot>:<name>],
-                                             client_id: ENV["VITSME_APP_ID"], client_secret: ENV["VITSME_APP_SECRET"])
-result.claims  # as above
-# raises OmniAuth::Vitsme::Knot::ConsentRequired once they no longer share it
+auth.uid                        # the partner's own identifier for the person at your site (never their vits.me uid)
+auth.extra.claims               # { "<scope>" => <the partner's answer> }, an empty list for one they did not give
+auth.credentials.refresh_token  # when the partner keeps a standing consent; nil otherwise
 ```
 
-**Change events.** Set a change notifications URL on your site's page, and vits.me POSTs to it when a
-partner says something changed for someone, when they stop sharing, or when a partner or scope leaves.
-Verify each one:
+Failures are `:not_signed_in` (no ID token), `:partner_untrusted` (vits.me does not list it as active),
+`:partner_unavailable`, `:partner_refused`, `:partner_mixup` (an answer from another issuer) and
+`:access_denied`.
+
+**Fresh claims, without the person.** While their standing consent at the partner holds:
 
 ```ruby
-class VitsmeEventsController < ActionController::API
+result = OmniAuth::Vitsme::Partner.fresh_claims(partner: "https://partner.example", client_id: ENV["VITSME_APP_ID"],
+                                                partner_secret: ENV["PARTNER_SECRET"], refresh_token: person.partner_refresh_token,
+                                                vitsme_issuer: OmniAuth::Vitsme.issuer(:production))
+result.claims         # as above
+result.refresh_token  # keep it: the one you used is spent
+# raises OmniAuth::Vitsme::Partner::Refused once the consent no longer holds: let go of what you had
+```
+
+**Change events.** A partner that keeps standing consents POSTs to the events address you registered
+with it when something changed for someone, or they stopped it. Verify each one:
+
+```ruby
+class PartnerEventsController < ActionController::API
   def create
-    event = OmniAuth::Vitsme::Events.verify!(request.raw_post, client_id: ENV["VITSME_APP_ID"],
-                                             environment: Rails.env)
-    person = Person.find_by(vitsme_uid: event.uid)
+    event = OmniAuth::Vitsme::Events.verify!(request.raw_post, partner: "https://partner.example",
+                                             client_id: ENV["VITSME_APP_ID"], environment: Rails.env)
+    link = PartnerLink.find_by(subject: event.uid)   # the uid the partner's answer gave you
     case event.type
-    when :claims_changed then RefreshPartnerClaimsJob.perform_later(person.id, event.scopes) if person
-    when :consent_withdrawn then person&.forget_partner_claims!(event.scopes)  # event.reason: "withdrawn" or "retired"
+    when :claims_changed then RefreshPartnerClaimsJob.perform_later(link.id) if link
+    when :consent_withdrawn then link&.destroy
     end
     head :accepted
   rescue OmniAuth::Vitsme::Events::Invalid
@@ -218,8 +248,6 @@ class VitsmeEventsController < ActionController::API
   end
 end
 ```
-
-Events never carry values, may arrive twice, and are retried until you answer `202`.
 
 ## Finding a returning person
 
@@ -263,9 +291,7 @@ OmniAuth sends failures to `OmniAuth.config.on_failure` (in Rails, `/auth/failur
     lookup_uids: ["solid_…", "solid_<earlier>"],
     fluid_uids: [],
     claims: { "name" => "Jane D.", "age__over_18" => true },     # typed, shared claims only
-    knot_claims: { "<claim>" => … },                              # from partner services, verified
-    knot_errors: {},                                             # partners that could not be asked
-    raw_info: { "sub" => "solid_…", … }                          # the UserInfo response, without KNOT sources
+    raw_info: { "sub" => "solid_…", … }                          # the UserInfo response
   }
 }
 ```

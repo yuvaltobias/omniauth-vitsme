@@ -13,7 +13,7 @@ module OmniAuth
     #   OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })              # provider :vitsme
     #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })
     #   OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
-    #   OmniAuth::Vitsme::Test.mock_auth(knot_claims: { '<claim>' => <what the partner answers> })
+    #   OmniAuth::Vitsme::Test.mock_partner(:contacts, partner: 'https://contacts.example', claims: { email: [...] })
     #
     # The auth hash is built by the same code as the real strategy's (AuthShape), so `info`, `extra`
     # and the typed claims look exactly as they will in production. Test mode skips the trip to vits.me
@@ -41,23 +41,36 @@ module OmniAuth
         info.merge(claims)
       end
 
-      def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [],
-                    knot_claims: {}, knot_errors: {})
+      def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [])
         uid ||= self.uid(identity)
         raw = raw_info(uid: uid, claims: claims, defunct_uids: defunct_uids, fluid_uids: fluid_uids)
-        knot = Knot::Result.new(knot_claims.transform_keys(&:to_s), knot_errors.transform_keys(&:to_s))
         OmniAuth::AuthHash.new(
           provider: provider.to_s,
           uid: uid,
           info: AuthShape.info(uid, raw),
           credentials: { id_token: 'test.id.token', scope: 'openid' },
-          extra: AuthShape.extra(uid, raw, knot: knot)
+          extra: AuthShape.extra(uid, raw)
         )
       end
 
       # Makes the next callback for `provider` succeed with this person.
       def mock_auth(provider = :vitsme, **)
         OmniAuth.config.mock_auth[provider.to_sym] = auth_hash(provider, **)
+      end
+
+      # A partner's answer (the vitsme_partner strategy), as your callback gets it. `claims` is whatever the
+      # partner says, passed through as it is; `subject` stands for the partner's identifier for the person.
+      def partner_auth_hash(provider, partner:, claims: {}, subject: nil, refresh_token: nil)
+        claims = claims.transform_keys(&:to_s)
+        subject ||= "ks_#{SecureRandom.urlsafe_base64(32)}"
+        OmniAuth::AuthHash.new(provider: provider.to_s, uid: subject, info: {},
+                               credentials: { refresh_token: refresh_token }.compact,
+                               extra: { partner: partner, claims: claims, scopes: claims.keys })
+      end
+
+      # Makes the next callback for a vitsme_partner `provider` succeed with this answer.
+      def mock_partner(provider, **)
+        OmniAuth.config.mock_auth[provider.to_sym] = partner_auth_hash(provider, **)
       end
 
       # Makes the next callback for `provider` fail with `type` (e.g. :identity_mismatch, :not_signed_in,

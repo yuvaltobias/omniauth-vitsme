@@ -57,6 +57,19 @@
       "examples": ["Jane Doe", "Jane M. Doe"],
       "description": "A full name, chosen from the person's full-name forms."
     },
+    "full_name__local": {
+      "scope": "full_name__local",
+      "type": "string",
+      "examples": ["יובל טוביאס", "José Núñez"],
+      "description": "The whole given and family name in the person's own language and script, as their documents print it: Hebrew for an Israeli."
+    },
+    "full_name__intl": {
+      "scope": "full_name__intl",
+      "type": "string",
+      "format": "Latin letters A-Z, words joined by a space, a dash or an apostrophe; capitalized, never all caps; no accents",
+      "examples": ["Jane Doe", "Jean-Luc O'Brien", "Jose Nunez"],
+      "description": "The whole given and family name in its international variant: the English version, capitalized, in Latin letters without accents."
+    },
     "nationality": {
       "scope": "nationality",
       "type": "string",

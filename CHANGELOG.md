@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-21
+
+### Added
+
+- The `full_name__local` and `full_name__intl` scopes: a full name in the person's own language and
+  script, and in its international variant (English, capitalized, Latin letters with dashes and apostrophes,
+  no accents). The person may leave out given names or show them as initials, keeping one written out.
+- The `portrait` scope: the person's photo, the first picture claim. `extra.claims["portrait"]` is an
+  `OmniAuth::Vitsme::Image` (`content_type`, `width`, `height`, `data`, `io`), decoded from the strict-base64
+  JPEG vits.me sends whole in UserInfo; anything else (another type, loose base64, over 200 KB) is dropped.
+  It is kept out of `info` and `extra.raw_info`, and its bytes out of `inspect`. Enabled by vits.me per site,
+  on request. `OmniAuth::Vitsme::Test` takes one as a claim.
+
 ## [0.5.0] - 2026-11-13
 
 ### Changed (breaking)

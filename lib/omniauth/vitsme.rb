@@ -2,6 +2,7 @@
 
 require 'omniauth/vitsme/version'
 require 'omniauth/vitsme/issuers'
+require 'omniauth/vitsme/image'
 require 'omniauth/vitsme/catalog'
 require 'omniauth/vitsme/auth_shape'
 require 'omniauth/vitsme/partner'

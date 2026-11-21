@@ -57,6 +57,19 @@
       "examples": ["Jane Doe", "Jane M. Doe"],
       "description": "A full name, chosen from the person's full-name forms."
     },
+    "full_name__local": {
+      "scope": "full_name__local",
+      "type": "string",
+      "examples": ["יובל טוביאס", "יובל ש. טוביאס", "José Núñez"],
+      "description": "A full name in the person's own language and script, as their documents print it: Hebrew for an Israeli. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
+    },
+    "full_name__intl": {
+      "scope": "full_name__intl",
+      "type": "string",
+      "format": "Latin letters A-Z, words joined by a space, a dash or an apostrophe, and a period only after an initial; capitalized, never all caps; no accents",
+      "examples": ["Jane Doe", "Jane M. Doe", "Jean-Luc O'Brien", "Jose Nunez"],
+      "description": "A full name in its international variant: the English version, capitalized, in Latin letters without accents. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
+    },
     "nationality": {
       "scope": "nationality",
       "type": "string",
@@ -88,6 +101,13 @@
       "scope": "il_government_id_number",
       "type": "string",
       "description": "Israeli government ID number (teudat zehut). Highly sensitive: request only with a legal need."
+    },
+    "portrait": {
+      "scope": "portrait",
+      "type": "image",
+      "format": "An object: content_type \"image/jpeg\", width and height in pixels, and content, the JPEG in standard base64 (RFC 4648 §4, no line breaks). Always a plain sRGB JPEG with no metadata, at most 200 KB, at the passport's own resolution and framing (about 7:9), never cropped or upscaled.",
+      "examples": [{ "content_type": "image/jpeg", "width": 480, "height": 640, "content": "/9j/4AAQSkZJRgABAQ…" }],
+      "description": "The person's photo: the face their passport chip carries, the one they chose to share. Sent whole: keep your own copy, there is no URL to fetch it from. Enabled by vits.me on request, per site, since a face links a person's accounts across sites whatever their identifiers."
     },
     "age": {
       "scope": "age",

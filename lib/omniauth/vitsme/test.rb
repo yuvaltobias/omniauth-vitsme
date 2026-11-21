@@ -30,7 +30,9 @@ module OmniAuth
 
       # The UserInfo response vits.me would send: identity claims plus the disclosure claims given.
       def raw_info(uid:, claims: {}, defunct_uids: [], fluid_uids: [])
+        # A picture is given as an OmniAuth::Vitsme::Image and sent as vits.me sends it.
         claims = claims.transform_keys(&:to_s)
+                       .transform_values { |value| value.respond_to?(:to_claim) ? value.to_claim : value }
         unknown = claims.keys.reject { |name| Catalog.claim(name) }
         raise ArgumentError, "omniauth-vitsme: unknown claim(s) #{unknown.join(', ')}" unless unknown.empty?
 

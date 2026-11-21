@@ -10,7 +10,9 @@ person's verified details to another.
   Read it instead of guessing; an unknown scope raises at boot.
 - Ask for the least that answers the question: `age__over_18` rather than `birthdate`, a gate
   rather than `nationality` when "is this person Israeli?" is all you need.
-- vits.me has no email, phone, picture or username claim. Ask the person for anything else.
+- vits.me has no email, phone or username claim, and no picture URL. Ask the person for anything else.
+- `portrait` is the person's photo, sent whole as an `OmniAuth::Vitsme::Image`. Attach it to your own
+  storage in the callback (`photo.io`); never link to vits.me for it, and never log it.
 
 ## Rules
 
@@ -40,8 +42,8 @@ person's verified details to another.
     `not_signed_in`, `identity_mismatch`, `unverified_identity`, `nationality_gate_refused`,
     `site_suspended`, `access_denied`.
 11. **Ask only for scopes the site registered.** Its page at vits.me/developer sets which it may ask
-    for, and vits.me refuses a request for any other. `il_government_id_number` is enabled by vits.me
-    on request, per site.
+    for, and vits.me refuses a request for any other. `il_government_id_number` and `portrait` are
+    enabled by vits.me on request, per site.
 12. **Partners (KNOTs) are asked directly, not through vits.me.** Use `provider :vitsme_partner` with the
     partner's issuer as vits.me lists it (`OmniAuth::Vitsme::Partner.listing`), its own scope names from its
     documentation, and `id_token:` returning the vits.me ID token you kept for the signed-in person. Never ask

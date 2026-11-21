@@ -50,6 +50,7 @@ module OmniAuth
         when 'boolean' then boolean(value)
         when 'integer' then integer(value)
         when 'string_array' then Array(value).map(&:to_s)
+        when 'image' then Image.from_claim(value)
         else value.to_s
         end
       end

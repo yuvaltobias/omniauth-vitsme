@@ -26,7 +26,7 @@ rules built in.
 
 ```ruby
 # Gemfile
-gem "omniauth-vitsme", "~> 0.5"
+gem "omniauth-vitsme", "~> 0.6"
 gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
@@ -79,9 +79,12 @@ formats, is [data/claims.json](data/claims.json).
 |---|---|---|
 | `name` | String: one name at the detail the person chose | `"Jane"`, `"J. D."`, `"Jane Doe"` |
 | `name__full` | String | `"Jane Doe"` |
+| `full_name__local` | String: a full name in the person's own language and script; given names may be left out or initialled, one kept whole | `"יובל טוביאס"`, `"José Núñez"` |
+| `full_name__intl` | String: the same in its international variant (English, capitalized, Latin letters, dashes and apostrophes, no accents) | `"Jose Nunez"`, `"Jane M. Doe"` |
 | `nationality` | String, ISO 3166-1 alpha-2 | `"IL"` |
 | `nationality__in_eu`, `__in_eea`, `__in_esm`, `__gdpr_compliant` | Boolean | `true` |
 | `il_government_id_number` | String | (sensitive: ask only with a legal need) |
+| `portrait` | `OmniAuth::Vitsme::Image`: the person's photo, a JPEG, with `content_type`, `width`, `height`, `data` and `io` | (enabled by vits.me on request; see below) |
 | `age` | String: a threshold, generation, range or years | `"over_18"`, `"gen_x"`, `"25_to_34"`, `"37"` |
 | `age__years` | Integer | `37` |
 | `age__range` | String | `"25_to_34"` |
@@ -105,7 +108,23 @@ else            ask_them_to_share_it
 end
 ```
 
-There is no email, phone, picture or username. If you need a public handle, ask the person for one.
+There is no email, phone or username, and no picture URL. If you need a public handle, ask the person for one.
+
+**The photo.** `portrait` is the face the person's passport chip carries, the one they chose to share. It
+arrives whole in the callback, as a plain JPEG at the passport's own resolution and framing, never cropped:
+**keep your own copy**, because there is no URL to fetch it from later and the tokens live five seconds.
+
+```ruby
+if (photo = auth.extra.claims["portrait"])
+  user.photo.attach(io: photo.io, filename: "portrait.jpg", content_type: photo.content_type)
+end
+```
+
+It is in `extra.claims` only: not in `info`, and left out of `extra.raw_info` so an auth hash kept in a cookie
+session does not carry the picture. Anything that is not the JPEG vits.me promises (another type, loose
+base64, over 200 KB) is dropped. A face links a person's accounts across sites whatever their identifiers, so
+vits.me enables the scope per site, on request, like `il_government_id_number`. In tests, pass one:
+`OmniAuth::Vitsme::Test.mock_auth(claims: { portrait: OmniAuth::Vitsme::Image.new(content_type: "image/jpeg", width: 3, height: 4, data: jpeg_bytes) })`.
 
 ## Verifying a signed-in person
 

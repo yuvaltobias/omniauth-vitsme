@@ -33,8 +33,14 @@ module OmniAuth
           # Tentative accounts (keyed by a pending signup's FLUID) to merge into this person.
           fluid_uids: Array(raw_info['fluid']),
           claims: claims(raw_info),
-          raw_info: raw_info
+          # Without the pictures: kept whole there, they would follow the auth hash into a cookie session
+          # and overflow it. The decoded picture is in `claims`.
+          raw_info: raw_info.except(*image_claims)
         }
+      end
+
+      def image_claims
+        @image_claims ||= Catalog.claims.select { |_name, spec| spec['type'] == 'image' }.keys.freeze
       end
 
       # The disclosure claims vits.me returned, typed by the catalog. Identity claims (sub, solid,

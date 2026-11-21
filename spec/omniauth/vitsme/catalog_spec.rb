@@ -4,9 +4,9 @@ RSpec.describe OmniAuth::Vitsme::Catalog do
   # The scopes vits.me offers (config/initializers/doorkeeper.rb `optional_scopes`, gates aside).
   # A new vits.me scope must land here too — see vitsme/docs/adding-vitsme-scope.md in the mono-repo.
   let(:vits_me_scopes) do
-    %w[openid fluid name name__full nationality nationality__in_eu nationality__in_eea nationality__in_esm
-       nationality__gdpr_compliant il_government_id_number age age__years age__range age__over_13
-       age__over_18 age__over_21 birthday birthdate birthyear]
+    %w[openid fluid name name__full full_name__local full_name__intl nationality nationality__in_eu
+       nationality__in_eea nationality__in_esm nationality__gdpr_compliant il_government_id_number age
+       age__years age__range age__over_13 age__over_18 age__over_21 birthday birthdate birthyear portrait]
   end
 
   it 'knows exactly the scopes vits.me offers' do
@@ -16,7 +16,7 @@ RSpec.describe OmniAuth::Vitsme::Catalog do
   it 'describes and types every claim' do
     described_class.claims.each do |name, spec|
       expect(spec).to include('scope', 'type', 'description'), "#{name} is incomplete"
-      expect(%w[string boolean integer string_array]).to include(spec['type']), "#{name} has an unknown type"
+      expect(%w[string boolean integer string_array image]).to include(spec['type']), "#{name} has an unknown type"
     end
   end
 

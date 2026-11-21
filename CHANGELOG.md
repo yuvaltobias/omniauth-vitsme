@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The `full_name__local` and `full_name__intl` scopes: the whole name in the person's own language and
+- The `full_name__local` and `full_name__intl` scopes: a full name in the person's own language and
   script, and in its international variant (English, capitalized, Latin letters with dashes and apostrophes,
-  no accents).
+  no accents). The person may leave out given names or show them as initials, keeping one written out.
 
 ## [0.5.0] - 2026-11-13
 

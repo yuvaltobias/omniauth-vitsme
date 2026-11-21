@@ -79,8 +79,8 @@ formats, is [data/claims.json](data/claims.json).
 |---|---|---|
 | `name` | String: one name at the detail the person chose | `"Jane"`, `"J. D."`, `"Jane Doe"` |
 | `name__full` | String | `"Jane Doe"` |
-| `full_name__local` | String: given and family name in the person's own language and script | `"יובל טוביאס"`, `"José Núñez"` |
-| `full_name__intl` | String: the same in its international variant (English, capitalized, Latin letters, dashes and apostrophes, no accents) | `"Jose Nunez"` |
+| `full_name__local` | String: a full name in the person's own language and script; given names may be left out or initialled, one kept whole | `"יובל טוביאס"`, `"José Núñez"` |
+| `full_name__intl` | String: the same in its international variant (English, capitalized, Latin letters, dashes and apostrophes, no accents) | `"Jose Nunez"`, `"Jane M. Doe"` |
 | `nationality` | String, ISO 3166-1 alpha-2 | `"IL"` |
 | `nationality__in_eu`, `__in_eea`, `__in_esm`, `__gdpr_compliant` | Boolean | `true` |
 | `il_government_id_number` | String | (sensitive: ask only with a legal need) |

@@ -60,15 +60,15 @@
     "full_name__local": {
       "scope": "full_name__local",
       "type": "string",
-      "examples": ["יובל טוביאס", "José Núñez"],
-      "description": "The whole given and family name in the person's own language and script, as their documents print it: Hebrew for an Israeli."
+      "examples": ["יובל טוביאס", "יובל ש. טוביאס", "José Núñez"],
+      "description": "A full name in the person's own language and script, as their documents print it: Hebrew for an Israeli. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
     },
     "full_name__intl": {
       "scope": "full_name__intl",
       "type": "string",
-      "format": "Latin letters A-Z, words joined by a space, a dash or an apostrophe; capitalized, never all caps; no accents",
-      "examples": ["Jane Doe", "Jean-Luc O'Brien", "Jose Nunez"],
-      "description": "The whole given and family name in its international variant: the English version, capitalized, in Latin letters without accents."
+      "format": "Latin letters A-Z, words joined by a space, a dash or an apostrophe, and a period only after an initial; capitalized, never all caps; no accents",
+      "examples": ["Jane Doe", "Jane M. Doe", "Jean-Luc O'Brien", "Jose Nunez"],
+      "description": "A full name in its international variant: the English version, capitalized, in Latin letters without accents. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
     },
     "nationality": {
       "scope": "nationality",

@@ -31,6 +31,17 @@ module OmniAuth
         GATE_PATTERN.match?(scope.to_s)
       end
 
+      # A scope that asks only who the person is: `openid`, `fluid` and the gates. A sign-in asks only these;
+      # any other scope asks for a detail, which only an ask may (Subject).
+      def identity_scope?(scope)
+        DATA['identity_scopes'].key?(scope.to_s) || gate_scope?(scope)
+      end
+
+      # The scopes that replace a deprecated one, or nil for a scope that is not.
+      def deprecated(scope)
+        claims.values.find { |claim| claim['scope'] == scope.to_s }&.dig('deprecated', 'use')
+      end
+
       # A partner's scopes are not asked of vits.me: they go to the partner (the vitsme_partner strategy).
       def known_scope?(scope)
         scopes.include?(scope.to_s) || gate_scope?(scope)

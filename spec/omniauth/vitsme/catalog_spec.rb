@@ -29,7 +29,7 @@ RSpec.describe OmniAuth::Vitsme::Catalog do
   it 'maps every refusal reason to an OmniAuth failure type the strategy documents' do
     reasons = described_class::DATA['refusals'].keys
     expect(reasons.map { |r| described_class.failure_for(r) })
-      .to all(satisfy { |t| (OmniAuth::Strategies::Vitsme::FAILURES + [:access_denied]).include?(t) })
+      .to all(satisfy { |t| (OmniAuth::Strategies::VitsmeTrip::FAILURES + [:access_denied]).include?(t) })
     expect(described_class.failure_for('something_new')).to be_nil
   end
 

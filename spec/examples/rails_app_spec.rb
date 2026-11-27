@@ -29,11 +29,17 @@ RSpec.describe 'examples/rails/app.rb' do # rubocop:disable RSpec/DescribeClass
     follow_redirect! while last_response.redirect? && !last_response.location.start_with?('https://vits.me')
     return last_response unless last_response.redirect?
 
-    query = Rack::Utils.parse_query(URI(last_response.location).query)
+    query = vitsme_request
     VitsMeStub.stub_sign_in(userinfo: userinfo, nonce: query.fetch('nonce'))
     get "https://example.test/auth/#{provider}/callback", code: 'c', state: query.fetch('state')
     follow_redirect! while last_response.redirect?
     last_response
+  end
+
+  # The request as vits.me got it: in the address for a sign-in, pushed for an ask.
+  def vitsme_request
+    query = Rack::Utils.parse_query(URI(last_response.location).query)
+    query.key?('request_uri') ? VitsMeStub.pushed : query
   end
 
   it 'signs a verified person in' do

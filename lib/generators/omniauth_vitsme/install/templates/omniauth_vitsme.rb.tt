@@ -16,11 +16,12 @@ Rails.application.config.middleware.use OmniAuth::Builder do
   )
 <% if verify? -%>
 
-  # Asks vits.me about the person already signed in here, and refuses an answer about anyone else.
+  # An ask: about the person already signed in here, from a button of yours. vits.me is told whom it is about, and
+  # the strategy refuses an answer about anyone else. Return the vits.me ID token, or the uid, you keep for them.
   provider :vitsme, vitsme.merge(
     name: :vitsme_verify,
     scope: <%= symbols(verify_scopes) %>,
-    expected_uid: ->(env) { <%= model %>.find_by(id: env['rack.session']['<%= session_key %>'])&.vitsme_uid }
+    ask_about: ->(env) { <%= model %>.find_by(id: env['rack.session']['<%= session_key %>'])&.vitsme_uid }
   )
 <% end -%>
 end

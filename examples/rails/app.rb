@@ -31,11 +31,11 @@ class ExampleApp < Rails::Application
     # 2. Sign in to a gated community: only verified Israeli nationals get through.
     provider :vitsme, vitsme.merge(name: :vitsme_gated, nationality_gate: %w[IL])
 
-    # 3. Verify a detail about the person signed in here — and nobody else.
+    # 3. Ask about the person signed in here — and nobody else — for a detail.
     provider :vitsme, vitsme.merge(
       name: :vitsme_verify,
       scope: %i[openid age__over_18],
-      expected_uid: ->(env) { env['rack.session']['vitsme_uid'] }
+      ask_about: ->(env) { env['rack.session']['vitsme_uid'] }
     )
   end
 

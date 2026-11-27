@@ -23,13 +23,15 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     end
   end
 
-  # The person signed in to the relying party, as the expected_uid lambdas below read it.
+  # The person signed in to the relying party, as the ask_about lambdas below read it.
   def signed_in_as(uid)
     header 'X-Signed-In', uid
   end
 
+  # The request as vits.me gets it: in the address for a sign-in, pushed for an ask.
   def authorize_query
-    Rack::Utils.parse_query(URI(last_response.location).query)
+    query = Rack::Utils.parse_query(URI(last_response.location).query)
+    query.key?('request_uri') ? VitsMeStub.pushed : query
   end
 
   def sign_in(info = userinfo)
@@ -73,12 +75,29 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     end
 
     it 'always requests openid and adds a nationality gate as gate scopes' do
-      s = strategy(scope: %i[age__over_18], nationality_gate: %w[IL us])
+      s = strategy(scope: %i[age__over_18], nationality_gate: %w[IL us], ask_about: ->(_env) {})
       expect(s.options.scope).to eq(%i[age__over_18 openid openid_nationality__il openid_nationality__us])
     end
 
     it 'refuses an unknown scope at boot' do
       expect { strategy(scope: %i[openid id_number]) }.to raise_error(ArgumentError, /unknown scope\(s\) id_number/)
+    end
+
+    it 'refuses a request for details that names nobody at boot: a sign-in asks only openid and gates' do
+      expect { strategy(scope: %i[openid age__over_18]) }.to raise_error(ArgumentError, /age__over_18 .*ask_about:/)
+      expect { strategy(nationality_gate: %w[IL]) }.not_to raise_error
+      expect { strategy(scope: %i[openid fluid]) }.not_to raise_error
+    end
+
+    it 'refuses the options that were renamed, saying what to use' do
+      expect { strategy(expected_uid: ->(_env) {}) }.to raise_error(ArgumentError, /expected_uid: is now ask_about:/)
+      expect { strategy(send_expected_uid: false, ask_about: ->(_env) {}) }
+        .to raise_error(ArgumentError, /send_expected_uid: is now gone/)
+    end
+
+    it 'warns at boot about a deprecated scope, naming what replaces it' do
+      expect { strategy(scope: %i[name__full], ask_about: ->(_env) {}) }
+        .to output(/name__full is deprecated; ask for full_name__intl or full_name__local/).to_stderr
     end
 
     it 'refuses fluid together with a nationality gate at boot' do
@@ -106,14 +125,47 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
       end
     end
 
-    context 'with expected_uid' do
-      let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
+    context 'when asking about the person signed in (ask_about)' do
+      let(:provider_options) { { ask_about: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
 
-      it 'tells vits.me whom it expects' do
+      it 'pushes it to vits.me, naming whom it is about, and sends the browser with only client_id and request_uri' do
         signed_in_as(solid)
         get '/auth/vitsme'
 
+        location = URI(last_response.location)
+        expect(location.to_s.split('?').first).to eq('https://vits.me/oauth/authorize')
+        expect(Rack::Utils.parse_query(location.query))
+          .to eq('client_id' => VitsMeStub::CLIENT_ID, 'request_uri' => VitsMeStub::REQUEST_URI)
         expect(JSON.parse(authorize_query.fetch('claims'))).to eq('id_token' => { 'sub' => { 'value' => solid } })
+        expect(authorize_query).to include('prompt' => 'login', 'code_challenge_method' => 'S256')
+        expect(WebMock).to have_requested(:post, 'https://vits.me/oauth/par')
+          .with(headers: { 'Authorization' => "Basic #{Base64.strict_encode64('rp-client:rp-secret')}" })
+      end
+
+      it 'names the person by the sub of the ID token ask_about returns' do
+        signed_in_as(OmniAuth::Vitsme::Test.id_token(solid))
+        get '/auth/vitsme'
+
+        expect(JSON.parse(authorize_query.fetch('claims')).dig('id_token', 'sub', 'value')).to eq(solid)
+      end
+
+      it 'fails with what vits.me says when it refuses the push' do
+        VitsMeStub.stub_par(status: 400, body: { error: 'invalid_request', vitsme_error: 'subject_required' })
+        signed_in_as(solid)
+        get '/auth/vitsme'
+        expect(last_response.body).to eq('subject_required')
+
+        VitsMeStub.stub_par(status: 400, body: { error: 'invalid_scope' })
+        get '/auth/vitsme'
+        expect(last_response.body).to eq('vitsme_refused')
+      end
+
+      it 'fails :vitsme_unavailable when vits.me cannot be reached' do
+        WebMock.stub_request(:post, 'https://vits.me/oauth/par').to_timeout
+        signed_in_as(solid)
+        get '/auth/vitsme'
+
+        expect(last_response.body).to eq('vitsme_unavailable')
       end
 
       it 'fails :not_signed_in before leaving the app when nobody is signed in' do
@@ -121,17 +173,6 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
 
         expect(last_response.status).to eq(401)
         expect(last_response.body).to eq('not_signed_in')
-      end
-    end
-
-    context 'with send_expected_uid: false' do
-      let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] }, send_expected_uid: false } }
-
-      it 'keeps the expectation to itself' do
-        signed_in_as(solid)
-        get '/auth/vitsme'
-
-        expect(authorize_query).not_to have_key('claims')
       end
     end
   end
@@ -211,8 +252,8 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     end
   end
 
-  describe 'identity match (expected_uid)' do
-    let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
+  describe 'identity match (ask_about)' do
+    let(:provider_options) { { ask_about: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
 
     it 'passes the person the app expected' do
       signed_in_as(solid)
@@ -240,7 +281,7 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     end
 
     context 'when require_verified is turned off' do
-      let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] }, require_verified: false } }
+      let(:provider_options) { { ask_about: ->(env) { env['HTTP_X_SIGNED_IN'] }, require_verified: false } }
 
       it 'lets a tentative account verify against its own fluid uid' do
         signed_in_as('fluid_x')
@@ -253,7 +294,7 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
   # OmniAuth's test mode skips vits.me but still calls the strategy's call_app!, so apps' tests exercise
   # the real identity checks against OmniAuth::Vitsme::Test mocks.
   describe 'in OmniAuth test mode' do
-    let(:provider_options) { { expected_uid: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
+    let(:provider_options) { { ask_about: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
 
     around do |example|
       OmniAuth.config.test_mode = true
@@ -266,6 +307,14 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
     it 'passes a mock of the person signed in' do
       OmniAuth::Vitsme::Test.mock_auth(uid: solid)
       signed_in_as(solid)
+      get '/auth/vitsme/callback'
+
+      expect(last_response.status).to eq(200)
+    end
+
+    it 'passes a mock of the person whose mocked ID token the app kept' do
+      kept = OmniAuth::Vitsme::Test.mock_auth(uid: solid).credentials.id_token
+      signed_in_as(kept)
       get '/auth/vitsme/callback'
 
       expect(last_response.status).to eq(200)
@@ -311,6 +360,10 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
 
     it 'names a subject mismatch vits.me caught itself' do
       expect(refused_with(error: 'access_denied', vitsme_error: 'subject_mismatch')).to eq('identity_mismatch')
+    end
+
+    it 'names a request for details that named nobody' do
+      expect(refused_with(error: 'invalid_request', vitsme_error: 'subject_required')).to eq('subject_required')
     end
 
     it 'names a site vits.me has suspended' do

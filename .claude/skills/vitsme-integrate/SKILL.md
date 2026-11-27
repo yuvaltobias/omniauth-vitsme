@@ -15,18 +15,20 @@ Ask the person (or infer from their request) which of these they want. It can be
 | Need | Configuration |
 |---|---|
 | Sign people in | `provider :vitsme` (scope `openid`) |
-| Learn something at sign-in | add disclosure scopes, e.g. `--scope=age__over_18` |
-| Verify a detail about someone already signed in | a second provider with `expected_uid` (`--verify=...`) |
+| Learn a detail about someone already signed in | an ask: a second provider with `ask_about` (`--verify=...`), started from a button that says why |
+| Details from vits.me and partners under one pincode | `provider :vitsme_trip` with `stops:` and `store:` (README, "Trips") |
 | Only verified nationals of X may join | `nationality_gate: %w[X]` (`--gate=X`) |
 | Let people in before their verification finishes | the `fluid` scope (`--fluid`); not with a gate |
 
-Pick the narrowest scope that answers the question, e.g. `age__over_18`, not `birthdate`.
+Pick the narrowest scope that answers the question, e.g. `age__over_18`, not `birthdate`. A sign-in asks no
+details: vits.me refuses a request for details that names nobody, and the gem raises at boot. A requirement for
+signing in is a gate.
 
 ## 2. Install
 
 ```bash
 bundle add omniauth-vitsme omniauth-rails_csrf_protection
-bin/rails g omniauth_vitsme:install --model=User [--scope=...] [--verify=...] [--gate=IL] [--fluid]
+bin/rails g omniauth_vitsme:install --model=User [--verify=...] [--gate=IL] [--fluid]
 bin/rails db:migrate
 ```
 

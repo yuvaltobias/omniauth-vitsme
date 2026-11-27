@@ -1,8 +1,9 @@
 {
-  "catalog_version": 3,
+  "catalog_version": 4,
   "about": "Every scope, claim, gate and refusal reason a vits.me relying party can use. Source of truth for omniauth-vitsme (OmniAuth::Vitsme::Catalog) and for agents and developers choosing scopes. Mirrors the vits.me server: config/initializers/doorkeeper.rb (scopes), config/initializers/doorkeeper_openid_connect.rb (claims), config/initializers/authorizations_controller_extension.rb (value domains, gates, refusals).",
   "conventions": {
-    "delivery": "Every claim except sub comes from the UserInfo endpoint, never the ID token. omniauth-vitsme fetches UserInfo on every sign-in.",
+    "delivery": "Every claim except sub comes from the UserInfo endpoint, never the ID token; the one exception is a trip's ticket, vitsme_trip, which only the ID token carries (see trips). omniauth-vitsme fetches UserInfo on every sign-in.",
+    "sign_in_and_ask": "A sign-in names nobody and asks only identity scopes (openid, fluid) and gates. An ask names the person it is about, the person signed in to your app (ask_about:), and may ask for details. vits.me refuses a request for details that names nobody (subject_required), and omniauth-vitsme refuses one at boot.",
     "absent_means_undisclosed": "A disclosure claim may be missing even when its scope was granted: the person chose to share nothing, holds no such detail, or hid it. Missing is never false.",
     "person_chooses_the_value": "For disclosure claims the person picks the value on vits.me's consent screen, from options at different levels of detail (e.g. a given name, initials, or a full name). Ask for the least you need.",
     "sub_is_private": "sub, solid, defunct_solids and fluid are private per-site identifiers. Store them; never render, log, put in a URL, federate or derive a public handle or email from them."
@@ -55,7 +56,8 @@
       "scope": "name__full",
       "type": "string",
       "examples": ["Jane Doe", "Jane M. Doe"],
-      "description": "A full name, chosen from the person's full-name forms."
+      "description": "A full name, chosen from the person's full-name forms, in either script. Deprecated: ask for full_name__intl (the default) or full_name__local. vits.me still answers it for a site that holds it, and offers it to no new registration.",
+      "deprecated": { "since_catalog_version": 4, "use": ["full_name__intl", "full_name__local"] }
     },
     "full_name__local": {
       "scope": "full_name__local",
@@ -175,6 +177,12 @@
     "fresh_claims": "While the standing consent holds: OmniAuth::Vitsme::Partner.fresh_claims(partner:, client_id:, partner_secret:, refresh_token:, vitsme_issuer:). Raises Refused once it does not.",
     "events": "Register an events address with the partner; verify each POST with OmniAuth::Vitsme::Events.verify!(token, partner:, client_id:) (claims_changed, consent_withdrawn) and answer 202."
   },
+  "trips": {
+    "description": "Several asks from one button under one pincode: vits.me first, then each partner the site names as a stop, each on its own page. The vitsme_trip strategy runs one. The first ask is pushed with vitsme_stops (the partners' issuers, space-separated, at most 4, each active and named once) and names its subject; the pincode page names every stop. The ID token of that ask carries vitsme_trip, the trip's ticket; sealed for each partner as its subject, it lets vits.me answer that partner's sign-in without the pincode page, once, for the same person, site and browser, within 10 minutes and the first stop within 2. Anything else is the pincode page again, never an error.",
+    "pushed_parameter": "vitsme_stops",
+    "ticket_claim": "vitsme_trip",
+    "limits": { "stops": 4, "lifetime_seconds": 600, "first_stop_within_seconds": 120 }
+  },
   "refusals": {
     "nationality_gate": {
       "error": "access_denied",
@@ -189,7 +197,22 @@
     "subject_mismatch": {
       "error": "access_denied",
       "omniauth_failure": "identity_mismatch",
-      "description": "The site said whom it expected (claims sub value) and a different person is signed in at vits.me."
+      "description": "The ask named its person (claims sub value) and a different person is signed in at vits.me."
+    },
+    "subject_required": {
+      "error": "invalid_request",
+      "omniauth_failure": "subject_required",
+      "description": "The request asked for details and named nobody. Ask about the person signed in to your app (ask_about:); a sign-in asks only openid and gates. Refused before the pincode."
+    },
+    "stops_invalid": {
+      "error": "invalid_request",
+      "omniauth_failure": "stops_invalid",
+      "description": "A trip named stops vits.me cannot take: a partner it does not list as active, one named twice, more than four, or stops on a request that does not name its person. Refused at the push, before the pincode."
+    },
+    "subject_invalid": {
+      "error": "access_denied",
+      "omniauth_failure": "subject_invalid",
+      "description": "A partner carried a sealed subject vits.me cannot read: not an ID token vits.me issued, for a site that is gone, or naming nobody. Partners see it; the site hears from the partner that the person was not asked."
     },
     "application_suspended": {
       "error": "access_denied",

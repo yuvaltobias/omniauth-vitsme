@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'base64'
+require 'json'
 require 'securerandom'
 require 'omniauth'
 require 'omniauth/vitsme'
@@ -10,14 +12,17 @@ module OmniAuth
     #
     #   require 'omniauth/vitsme/test'
     #   OmniAuth.config.test_mode = true
-    #   OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })              # provider :vitsme
-    #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })
+    #   OmniAuth::Vitsme::Test.mock_auth(uid: uid)                                    # provider :vitsme, a sign-in
+    #   OmniAuth::Vitsme::Test.mock_auth(:verify, uid: person.vitsme_uid, claims: { name: 'Jane D.' })   # an ask
     #   OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
     #   OmniAuth::Vitsme::Test.mock_partner(:contacts, partner: 'https://contacts.example', claims: { email: [...] })
+    #   OmniAuth::Vitsme::Test.mock_trip(:verify_and_groups, uid: person.vitsme_uid, claims: { age__over_18: true },
+    #                                    stops: [{ partner: 'https://groups.example', claims: { 'roles' => [] } }])
     #
     # The auth hash is built by the same code as the real strategy's (AuthShape), so `info`, `extra`
-    # and the typed claims look exactly as they will in production. Test mode skips the trip to vits.me
-    # but still runs the strategy's identity checks (expected_uid, require_verified) on the mock: mock
+    # and the typed claims look exactly as they will in production, and `credentials.id_token` names the uid
+    # as a real one does (`ask_about:` may return it). Test mode skips the trip to vits.me
+    # but still runs the strategy's identity checks (ask_about, require_verified) on the mock: mock
     # someone other than the signed-in person to see :identity_mismatch. mock_failure is for refusals
     # only vits.me makes (:nationality_gate_refused, :site_suspended, :access_denied).
     module Test
@@ -43,6 +48,15 @@ module OmniAuth
         info.merge(claims)
       end
 
+      # An ID token naming `uid`, as your app keeps it and `ask_about:` may return it. Unsigned: a stand-in
+      # that OmniAuth::Vitsme::Subject reads as it reads a real one.
+      def id_token(uid, **claims)
+        part = ->(hash) { Base64.urlsafe_encode64(JSON.generate(hash), padding: false) }
+        header = part.call(alg: 'none', typ: 'JWT')
+        payload = part.call({ iss: 'https://vits.me', sub: uid }.merge(claims))
+        "#{header}.#{payload}."
+      end
+
       def auth_hash(provider = :vitsme, identity: :solid, uid: nil, claims: {}, defunct_uids: [], fluid_uids: [])
         uid ||= self.uid(identity)
         raw = raw_info(uid: uid, claims: claims, defunct_uids: defunct_uids, fluid_uids: fluid_uids)
@@ -50,7 +64,7 @@ module OmniAuth
           provider: provider.to_s,
           uid: uid,
           info: AuthShape.info(uid, raw),
-          credentials: { id_token: 'test.id.token', scope: 'openid' },
+          credentials: { id_token: id_token(uid), scope: 'openid' },
           extra: AuthShape.extra(uid, raw)
         )
       end
@@ -73,6 +87,27 @@ module OmniAuth
       # Makes the next callback for a vitsme_partner `provider` succeed with this answer.
       def mock_partner(provider, **)
         OmniAuth.config.mock_auth[provider.to_sym] = partner_auth_hash(provider, **)
+      end
+
+      # A whole trip's answer (the vitsme_trip strategy): vits.me's, as auth_hash builds it, and each stop's in
+      # `extra.stops`. A stop is { partner:, claims:, subject:, refresh_token: } or { partner:, error: }.
+      def trip_auth_hash(provider, stops:, **)
+        auth = auth_hash(provider, **)
+        auth.extra.stops = stops.map { |stop| trip_stop(stop.transform_keys(&:to_s)) }
+        auth
+      end
+
+      def trip_stop(stop)
+        return stop.slice('partner', 'error') if stop['error']
+
+        claims = stop.fetch('claims', {}).transform_keys(&:to_s)
+        { 'partner' => stop.fetch('partner'), 'uid' => stop['subject'] || "ks_#{SecureRandom.urlsafe_base64(32)}",
+          'claims' => claims, 'scopes' => claims.keys, 'refresh_token' => stop['refresh_token'] }.compact
+      end
+
+      # Makes the next callback for a vitsme_trip `provider` succeed with this answer.
+      def mock_trip(provider, **)
+        OmniAuth.config.mock_auth[provider.to_sym] = trip_auth_hash(provider, **)
       end
 
       # Makes the next callback for `provider` fail with `type` (e.g. :identity_mismatch, :not_signed_in,

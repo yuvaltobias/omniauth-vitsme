@@ -11,7 +11,7 @@ RSpec.describe OmniAuth::Strategies::VitsmePartner do
     example = self
     options = { name: :acme, partner: PartnerStub::ISSUER, scope: %w[email], client_id: VitsMeStub::CLIENT_ID,
                 client_secret: VitsMeStub::CLIENT_SECRET, issuer: VitsMeStub::ISSUER,
-                id_token: ->(_env) { example.id_token } }.merge(provider_options)
+                ask_about: ->(_env) { example.id_token } }.merge(provider_options)
     Rack::Builder.new do
       use Rack::Session::Cookie, secret: 'x' * 64
       use OmniAuth::Builder do
@@ -44,12 +44,19 @@ RSpec.describe OmniAuth::Strategies::VitsmePartner do
                                      'redirect_uri' => 'http://example.org/auth/acme/callback')
   end
 
-  it 'sends the ID token as a hint only vits.me can read' do
+  it 'sends the ID token sealed: as id_token_hint, encrypted so only vits.me can read it' do
     PartnerStub.stub_partner
     get '/auth/acme'
-    hint = pushed_params.fetch('id_token_hint')
-    expect(hint).not_to include(id_token)
-    expect(JSON::JWT.decode(hint, PartnerStub::VITSME_ENC).plain_text).to eq(id_token)
+    sealed = pushed_params.fetch('id_token_hint')
+    expect(sealed).not_to include(id_token)
+    expect(JSON::JWT.decode(sealed, PartnerStub::VITSME_ENC).plain_text).to eq(id_token)
+  end
+
+  it 'refuses id_token: at boot, naming ask_about:' do
+    strategy = lambda do
+      described_class.new(->(_env) { [200, {}, []] }, partner: PartnerStub::ISSUER, id_token: ->(_env) {})
+    end
+    expect { strategy.call }.to raise_error(ArgumentError, /id_token: is now ask_about:/)
   end
 
   it "redeems the code and hands over the verified answer, under the partner's identifier for the person" do
@@ -118,5 +125,45 @@ RSpec.describe OmniAuth::Strategies::VitsmePartner do
     get '/auth/acme'
     get '/auth/acme/callback', error: 'access_denied', state: pushed_params.fetch('state')
     expect(last_response.body).to eq('access_denied')
+  end
+
+  context 'with a label hint' do
+    let(:provider_options) { { scope: %w[email phone], label_hint: { email: :work, phone: 'mobile' } } }
+
+    it 'pushes the label it would like under each scope it asks' do
+      PartnerStub.stub_partner
+      get '/auth/acme'
+      expect(pushed_params).to include('label_hint' => 'email:work phone:mobile')
+    end
+  end
+
+  context 'with a label hint worked out at the click' do
+    let(:provider_options) { { label_hint: ->(env) { { email: env['HTTP_X_LABEL'], link: :blog } } } }
+
+    it 'pushes the one for this request, dropping what is malformed or not asked' do
+      PartnerStub.stub_partner
+      header 'X-Label', 'school'
+      get '/auth/acme'
+      expect(pushed_params).to include('label_hint' => 'email:school')
+
+      header 'X-Label', 'home page'
+      get '/auth/acme'
+      expect(pushed_params).not_to have_key('label_hint')
+    end
+  end
+
+  it 'pushes no label hint without one' do
+    PartnerStub.stub_partner
+    get '/auth/acme'
+    expect(pushed_params).not_to have_key('label_hint')
+  end
+
+  it 'refuses a malformed label hint at boot' do
+    build = lambda do |hint|
+      described_class.new(->(_env) { [200, {}, []] }, partner: PartnerStub::ISSUER, scope: %w[email], label_hint: hint)
+    end
+    expect { build.call({ email: 'home page' }) }.to raise_error(ArgumentError, /vitsme_partner label_hint:/)
+    expect { build.call({ phone: :mobile }) }.to raise_error(ArgumentError, /a scope it does not ask/)
+    expect { build.call(->(_env) { { email: 'home page' } }) }.not_to raise_error
   end
 end

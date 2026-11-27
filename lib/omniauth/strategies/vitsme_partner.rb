@@ -4,6 +4,7 @@ require 'omniauth'
 require 'securerandom'
 require 'omniauth/vitsme/issuers'
 require 'omniauth/vitsme/partner'
+require 'omniauth/vitsme/options'
 
 module OmniAuth
   module Strategies
@@ -14,13 +15,18 @@ module OmniAuth
     #            scope: %w[email],                                 # its own scope names
     #            client_id: ..., client_secret: ...,               # your site at vits.me
     #            partner_secret: ...,                              # yours at the partner, if it takes registrations
-    #            id_token: ->(env) { ...the vits.me ID token you keep for the signed-in person... }
+    #            ask_about: ->(env) { ...the vits.me ID token you keep for the signed-in person... },
+    #            label_hint: { email: :work }                      # optional; a Hash, or ->(env) { {...} }
     #
     # The person is sent to the partner, signs in there with their pincode (vits.me lets only the person
-    # you mean), and answers on the partner's own page. The callback has `uid`, the partner's identifier
-    # for them at your site, `extra.claims`, what they agreed to (an empty list for what they did not),
-    # and `credentials.refresh_token` when the partner keeps a standing consent (ask again with
-    # OmniAuth::Vitsme::Partner.fresh_claims). Ask from a button of your own, when you need it.
+    # you mean), and answers on the partner's own page. The ID token goes to the partner sealed, encrypted to
+    # vits.me (Partner.seal_subject), so the partner cannot read it. The callback has `uid`, the partner's
+    # identifier for them at your site, `extra.claims`, what they agreed to (an empty list for what they did
+    # not), and `credentials.refresh_token` when the partner keeps a standing consent (ask again with
+    # OmniAuth::Vitsme::Partner.fresh_claims). `label_hint` says which label you would like for an item under a
+    # scope asked: the partner may use it to sort the person's items, and never tells the label back
+    # (OmniAuth::Vitsme::LabelHint). Ask from a button of your own, when you need it. To ask vits.me and partners
+    # under one pincode, use vitsme_trip.
     class VitsmePartner
       include OmniAuth::Strategy
 
@@ -32,20 +38,32 @@ module OmniAuth
       option :client_id, nil
       option :client_secret, nil
       option :partner_secret, nil
-      option :id_token, nil
+      option :ask_about, nil
       option :ui_locales, nil
+      option :label_hint, nil
       option :environment, :production
       option :issuer, nil
 
       FAILURES = %i[not_signed_in partner_untrusted partner_unavailable partner_refused partner_mixup
                     access_denied].freeze
 
+      RENAMED = { 'id_token' => 'ask_about: (return the vits.me ID token you keep for the signed-in person)' }.freeze
+
+      def initialize(app, *args, &)
+        super
+        OmniAuth::Vitsme::Options.refuse_renamed!(options, RENAMED)
+        return if options.label_hint.respond_to?(:call)
+
+        OmniAuth::Vitsme::LabelHint.check!(options.label_hint, options.scope, 'vitsme_partner')
+      end
+
       def request_phase
-        id_token = options.id_token&.call(env).to_s
+        id_token = options.ask_about&.call(env).to_s
         return fail!(:not_signed_in) if id_token.empty?
 
-        OmniAuth::Vitsme::Partner.trusted!(options.partner, vitsme_issuer)
-        redirect OmniAuth::Vitsme::Partner.push(options.partner, push_params(id_token), basic: partner_basic)
+        asked = ask(id_token)
+        session["#{SESSION_KEY}.#{name}"] = { 'state' => asked.state, 'verifier' => asked.verifier }
+        redirect asked.location
       rescue OmniAuth::Vitsme::Partner::Untrusted => e
         fail!(:partner_untrusted, e)
       rescue OmniAuth::Vitsme::Partner::Unavailable, OmniAuth::Vitsme::Keys::Unavailable => e
@@ -80,6 +98,13 @@ module OmniAuth
 
       private
 
+      def ask(id_token)
+        OmniAuth::Vitsme::Partner.ask(partner: options.partner, scope: options.scope, id_token: id_token,
+                                      client_id: options.client_id, client_secret: options.client_secret,
+                                      partner_secret: options.partner_secret, redirect_uri: callback_url,
+                                      vitsme_issuer: vitsme_issuer, ui_locales: ui_locales, label_hint: label_hint)
+      end
+
       def callback_refusal(stored)
         return :csrf_detected unless stored['state'] && secure_compare(request.params['state'].to_s,
                                                                        stored['state'])
@@ -94,27 +119,12 @@ module OmniAuth
                                          code_verifier: stored['verifier'], basic: partner_basic)
       end
 
-      def push_params(id_token)
-        verifier, challenge = OmniAuth::Vitsme::Partner.pkce
-        state = SecureRandom.urlsafe_base64(24)
-        session["#{SESSION_KEY}.#{name}"] = { 'state' => state, 'verifier' => verifier }
-        params = { response_type: 'code', client_id: options.client_id, redirect_uri: callback_url,
-                   scope: Array(options.scope).join(' '), state: state, code_challenge: challenge,
-                   code_challenge_method: 'S256', ui_locales: ui_locales,
-                   id_token_hint: OmniAuth::Vitsme::Partner.hint(id_token, vitsme_issuer) }.compact
-        if OmniAuth::Vitsme::Partner.metadata(options.partner)['software_statement_required']
-          statement = software_statement
-        end
-        statement ? params.merge(software_statement: statement) : params
-      end
-
-      def software_statement
-        OmniAuth::Vitsme::Partner.software_statement(vitsme_issuer: vitsme_issuer, client_id: options.client_id,
-                                                     client_secret: options.client_secret, audience: options.partner)
-      end
-
       def ui_locales
         options.ui_locales.respond_to?(:call) ? options.ui_locales.call(env) : options.ui_locales
+      end
+
+      def label_hint
+        options.label_hint.respond_to?(:call) ? options.label_hint.call(env) : options.label_hint
       end
 
       def partner_basic = options.partner_secret ? [options.client_id, options.partner_secret] : nil

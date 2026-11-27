@@ -13,7 +13,7 @@ class VitsmeCallbacksController < ApplicationController
 <% if verify? -%>
 
   # The strategy has already checked that this answer is about the person signed in here
-  # (expected_uid). A claim the person chose not to share is absent — never treat that as false.
+  # (ask_about). A claim the person chose not to share is absent — never treat that as false.
   def verify
     claims = request.env['omniauth.auth'].extra.claims
     # Keep what you asked for, e.g.: current_<%= options[:model].underscore %>.update!(adult: claims['age__over_18'])

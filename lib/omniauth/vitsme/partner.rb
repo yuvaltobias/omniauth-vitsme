@@ -7,14 +7,15 @@ require 'securerandom'
 require 'omniauth/vitsme/http'
 require 'omniauth/vitsme/jws'
 require 'omniauth/vitsme/keys'
+require 'omniauth/vitsme/label_hint'
 require 'omniauth/vitsme/partner_directory'
 
 module OmniAuth
   module Vitsme
     # Asking a partner of vits.me (a KNOT) about a person signed in to your site. Partners are OAuth servers
     # of their own: your site is their client, asks them directly, and gets their answer straight from them.
-    # vits.me only signs the person in there and makes sure it is the person you mean, from the hint you
-    # send: the ID token vits.me gave you for them, encrypted to vits.me, so the partner cannot read it.
+    # vits.me only signs the person in there and makes sure it is the person you mean, from the sealed subject
+    # you send: the ID token vits.me gave you for them, encrypted to vits.me, so the partner cannot read it.
     #
     # The browser part is the `vitsme_partner` strategy (OmniAuth::Strategies::VitsmePartner). This module
     # is the rest: whom to trust, the partner's endpoints, and asking again with a refresh token.
@@ -25,6 +26,8 @@ module OmniAuth
       class Refused < StandardError; end
 
       Result = Struct.new(:claims, :subject, :refresh_token, :scopes, keyword_init: true)
+      # A request pushed to a partner: where to send the person, and what its callback checks and redeems with.
+      Asked = Struct.new(:location, :state, :verifier, keyword_init: true)
 
       class << self
         # Whom to trust and where its endpoints are (PartnerDirectory).
@@ -33,9 +36,10 @@ module OmniAuth
         def metadata(partner) = PartnerDirectory.metadata(partner)
         def clear! = PartnerDirectory.clear!
 
-        # The ID token you hold for the person, encrypted to vits.me's own key (use: enc in its JWKS), anew
-        # each time, so the partner can neither read it nor match one person's requests.
-        def hint(id_token, vitsme_issuer)
+        # The sealed subject: the ID token you hold for the person, encrypted to vits.me's own key (use: enc in
+        # its JWKS), anew each time, so the partner can neither read it nor match one person's requests. It goes
+        # to the partner as `id_token_hint`, and the partner carries it to vits.me unread.
+        def seal_subject(id_token, vitsme_issuer)
           key = Keys.for("#{vitsme_issuer}/oauth/discovery/keys", kid: nil).find { |jwk| jwk[:use] == 'enc' }
           raise Unavailable, 'vits.me publishes no encryption key' unless key
 
@@ -72,6 +76,29 @@ module OmniAuth
         def pkce
           verifier = SecureRandom.urlsafe_base64(48)
           [verifier, Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)]
+        end
+
+        # Asks a partner about the person an ID token names: checks vits.me lists it as active, pushes the request
+        # with the sealed subject (and a software statement where the partner wants one), and returns where to send
+        # the person, with the state and PKCE verifier its callback needs. `label_hint`, a Hash { scope => label },
+        # says which label you would like for an item under a scope asked (LabelHint); malformed pairs are dropped.
+        # The vitsme_partner and vitsme_trip strategies ask this way.
+        def ask(partner:, scope:, id_token:, client_id:, client_secret:, redirect_uri:, vitsme_issuer:,
+                partner_secret: nil, ui_locales: nil, label_hint: nil)
+          trusted!(partner, vitsme_issuer)
+          verifier, challenge = pkce
+          state = SecureRandom.urlsafe_base64(24)
+          params = { response_type: 'code', client_id: client_id, redirect_uri: redirect_uri,
+                     scope: Array(scope).join(' '), state: state, code_challenge: challenge,
+                     code_challenge_method: 'S256', ui_locales: ui_locales,
+                     label_hint: LabelHint.param(label_hint, scope),
+                     id_token_hint: seal_subject(id_token, vitsme_issuer) }.compact
+          if metadata(partner)['software_statement_required']
+            params[:software_statement] = software_statement(vitsme_issuer: vitsme_issuer, client_id: client_id,
+                                                             client_secret: client_secret, audience: partner)
+          end
+          basic = partner_secret ? [client_id, partner_secret] : nil
+          Asked.new(location: push(partner, params, basic: basic), state: state, verifier: verifier)
         end
 
         # Pushes the request (RFC 9126) and returns where to send the person.

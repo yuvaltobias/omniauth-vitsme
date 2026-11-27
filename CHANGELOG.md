@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-27
+
+vits.me now tells a sign-in from an ask by whether the request names the person it is about, and refuses a
+request for details that names nobody. It can also ask vits.me and partners under one pincode.
+
+### Changed (breaking)
+
+- `expected_uid:` is now `ask_about:`. It returns the vits.me ID token you kept for the signed-in person
+  (`auth.credentials.id_token`), or the uid you store; the gem sends the token's `sub` (or the uid) as the
+  `claims` sub value, as before. `send_expected_uid:` is gone: vits.me is always told. Either old name raises
+  `ArgumentError` at boot, naming the new one.
+- A `provider :vitsme` asking for a claim scope without `ask_about:` raises at boot: a sign-in asks only
+  `openid` and gates. Ask for details from a button once the person is signed in.
+- Every ask is pushed to vits.me first (RFC 9126, `pushed_authorization_request_endpoint`), so the browser
+  carries only `client_id` and a `request_uri`. Sign-ins are unchanged.
+- `provider :vitsme_partner`'s `id_token:` is now `ask_about:`, and `Partner.hint` is
+  `Partner.seal_subject`.
+- The install generator has no `--scope` any more: a sign-in asks no details. `--verify` writes an ask.
+
+### Added
+
+- `provider :vitsme_trip`: vits.me and then each partner in `stops:` from one button, under one pincode. The
+  first ask is pushed with `vitsme_stops`; each partner is asked with the fresh ID token, which carries the
+  trip's ticket, sealed; each code is redeemed on arrival and the answers wait in `store:`, never the session.
+  One auth hash at the end, with `extra.stops`. `OmniAuth::Vitsme::Test.mock_trip`.
+- `Partner.ask`, which both partner strategies use; `OmniAuth::Vitsme::Subject`.
+- `label_hint`: which label your site would like for an item under a scope, pushed to the partner as
+  space-separated `scope:label` pairs (`label_hint=email:work phone:mobile`), only for scopes the request asks.
+  A Hash `{ scope => label }` on a trip's stop (kept with the stop in `store:`, sent with that stop's request
+  only), as `Partner.ask(label_hint:)`, and as `provider :vitsme_partner`'s `label_hint` option (a Hash, or
+  `->(env) { {...} }`). The partner may use it to sort the person's items and never tells it back. Only the
+  shape is checked: a malformed static hint raises `ArgumentError` at boot, and a malformed pair worked out at
+  the click is dropped. `OmniAuth::Vitsme::LabelHint`.
+- Failure types `:subject_required`, `:subject_invalid`, `:vitsme_refused` and `:vitsme_unavailable`, and
+  `:stops_invalid` on a trip, with the generator's messages for them.
+- `OmniAuth::Vitsme::Test.id_token(uid)`: mocked credentials now carry an ID token naming the mocked uid.
+- data/claims.json, catalog version 4: the refusals `subject_required` and `subject_invalid`, a `trips`
+  section, and `name__full` marked deprecated.
+
+### Deprecated
+
+- `name__full`: ask for `full_name__intl` (the default) or `full_name__local`. Naming it warns at boot.
+  vits.me still answers it for a site that holds it.
+
 ## [0.6.0] - 2026-11-21
 
 ### Added

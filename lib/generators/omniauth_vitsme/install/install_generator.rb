@@ -13,7 +13,8 @@ module OmniAuth
       # Sign-in with vits.me wired the way the README describes: an initializer, a callbacks controller
       # that finds a returning person by every uid vits.me lists for them, failure messages (en/he), a
       # sign-in button partial, routes, and a migration adding a private, unique `vitsme_uid` column.
-      # --verify adds a second provider that asks about the person already signed in, with expected_uid.
+      # --verify adds a second provider, an ask about the person already signed in (ask_about:). A sign-in asks only
+      # openid and gates (--gate), so details are asked with --verify, from a button once the person is signed in.
       class InstallGenerator < Rails::Generators::Base
         include Rails::Generators::Migration
 
@@ -21,7 +22,6 @@ module OmniAuth
         source_root File.expand_path('templates', __dir__)
 
         class_option :model, type: :string, default: 'User', desc: 'The model a vits.me uid signs in as'
-        class_option :scope, type: :array, default: [], desc: 'Disclosure scopes to ask for at sign-in'
         class_option :verify, type: :array, default: [],
                               desc: 'Scopes for a :vitsme_verify provider about the signed-in person'
         class_option :gate, type: :array, default: [], desc: 'Nationalities (ISO alpha-2) required to sign in'
@@ -91,7 +91,7 @@ module OmniAuth
         end
 
         def sign_in_scopes
-          (['openid'] + options[:scope] + (options[:fluid] ? ['fluid'] : [])).uniq
+          (['openid'] + (options[:fluid] ? ['fluid'] : [])).uniq
         end
 
         def verify_scopes

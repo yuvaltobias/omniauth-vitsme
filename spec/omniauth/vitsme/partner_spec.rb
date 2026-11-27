@@ -51,4 +51,26 @@ RSpec.describe OmniAuth::Vitsme::Partner do
     expect { described_class.trusted!(PartnerStub::ISSUER, VitsMeStub::ISSUER) }
       .to raise_error(described_class::Untrusted)
   end
+
+  describe '.ask' do
+    def ask(**extra)
+      described_class.ask(partner: PartnerStub::ISSUER, scope: %w[email phone], id_token: 'the.id.token',
+                          client_id: VitsMeStub::CLIENT_ID, client_secret: VitsMeStub::CLIENT_SECRET,
+                          redirect_uri: 'https://rp.example/cb', vitsme_issuer: VitsMeStub::ISSUER, **extra)
+    end
+
+    before { PartnerStub.stub_partner }
+
+    it 'pushes the label hint for the scopes it asks, dropping anything malformed or not asked' do
+      ask(label_hint: { email: :work, phone: 'home page', link: :blog, 'phone' => 'mobile' })
+      expect(PartnerStub.pushed).to include('scope' => 'email phone', 'label_hint' => 'email:work phone:mobile')
+    end
+
+    it 'pushes no label hint without one, or with none left' do
+      ask
+      expect(PartnerStub.pushed).not_to have_key('label_hint')
+      ask(label_hint: { link: :blog })
+      expect(PartnerStub.pushed).not_to have_key('label_hint')
+    end
+  end
 end

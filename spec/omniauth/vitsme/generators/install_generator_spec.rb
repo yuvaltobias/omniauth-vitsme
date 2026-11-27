@@ -73,13 +73,14 @@ RSpec.describe OmniAuth::Vitsme::Generators::InstallGenerator do
   end
 
   context 'with a model, verify scopes and a gate' do
-    before { generate('--model=Account', '--scope=name', '--verify=age__over_18', '--gate=il') }
+    before { generate('--model=Account', '--verify=age__over_18', '--gate=il') }
 
     it 'gates sign-in and adds a verify provider bound to the signed-in account' do
       initializer = read('config/initializers/omniauth_vitsme.rb')
-      expect(initializer).to include('scope: %i[openid name]', 'nationality_gate: %w[IL]', 'name: :vitsme_verify',
+      expect(initializer).to include('scope: %i[openid]', 'nationality_gate: %w[IL]', 'name: :vitsme_verify',
                                      'scope: %i[openid age__over_18]',
-                                     "Account.find_by(id: env['rack.session']['account_id'])&.vitsme_uid")
+                                     'ask_about: ->(env) { Account.find_by(id: ' \
+                                     "env['rack.session']['account_id'])&.vitsme_uid }")
     end
 
     it 'routes and handles the verify callback' do

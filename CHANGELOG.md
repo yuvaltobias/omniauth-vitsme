@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-28
+
+Required scopes.
+
+### Added
+
+- A star after a scope marks it required in an ask: `scope: %i[full_name__intl*]` for vits.me,
+  `scope: %w[email*]` for `provider :vitsme_partner` and a trip's stops. The consent page marks it and waits until
+  the person gives it; the person may still cancel. The star goes to the server as written, and everything else
+  (the catalog check at boot, `label_hint`, the claims) reads the plain name.
+- `:required_missing`, when an answer comes back without a required claim; on a trip, that stop's `error`. The
+  install generator's failure messages include it.
+
+### Changed
+
+- A star on `openid`, `fluid`, a gate or on nothing raises `ArgumentError` at boot.
+
 ## [0.7.0] - 2026-11-27
 
 vits.me now tells a sign-in from an ask by whether the request names the person it is about, and refuses a

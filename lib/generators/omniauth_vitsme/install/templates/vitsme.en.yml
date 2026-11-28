@@ -15,5 +15,6 @@ en:
       subject_required: "This could not be asked. Sign in first, then try again."
       subject_invalid: "This could not be checked. Please try again."
       stops_invalid: "This could not be asked of everyone at once. Please try again."
+      required_missing: "A detail this needs was not shared. Please try again and share it."
       vitsme_refused: "This could not be asked right now. Please try again."
       vitsme_unavailable: "Verification is unavailable right now. Please try again later."

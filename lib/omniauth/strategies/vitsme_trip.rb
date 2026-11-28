@@ -3,6 +3,7 @@
 require 'securerandom'
 require 'omniauth/strategies/vitsme'
 require 'omniauth/vitsme/partner'
+require 'omniauth/vitsme/required'
 
 module OmniAuth
   module Strategies
@@ -36,7 +37,8 @@ module OmniAuth
     # The auth hash is provider :vitsme's (uid, info, extra.claims, credentials.id_token: keep it), plus
     # `extra.stops`, one entry per stop in order: { partner, uid, claims, scopes, refresh_token } or
     # { partner, error }. A stop that fails is recorded and the trip goes on; a first ask that fails fails the
-    # trip with provider :vitsme's failure types.
+    # trip with provider :vitsme's failure types. A stop's starred scope is required there (OmniAuth::Vitsme::Required):
+    # an answer without it is that stop's `error`, 'required_missing'.
     class VitsmeTrip < Vitsme
       option :name, 'vitsme_trip'
       option :stops, nil
@@ -131,21 +133,26 @@ module OmniAuth
 
       def stop_answered(trip)
         leg = trip.delete('leg')
-        trip['answers'] << { 'partner' => leg['partner'] }.merge(stop_answer(leg))
+        stop = trip['stops'][trip['answers'].size]
+        trip['answers'] << { 'partner' => leg['partner'] }.merge(stop_answer(leg, stop))
         next_stop(trip)
       end
 
-      def stop_answer(leg)
+      def stop_answer(leg, stop)
         return { 'error' => request.params['error'].to_s } if request.params['error']
         return { 'error' => 'partner_mixup' } if request.params['iss'] && request.params['iss'] != leg['partner']
 
         result = redeem(leg)
+        return { 'error' => 'required_missing' } if missing_required?(stop['scope'], result.claims)
+
         { 'uid' => result.subject, 'claims' => result.claims, 'scopes' => result.scopes,
           'refresh_token' => result.refresh_token }.compact
       rescue OmniAuth::Vitsme::Partner::Refused, OmniAuth::Vitsme::Partner::Unavailable,
              OmniAuth::Vitsme::JWS::Invalid, OmniAuth::Vitsme::Keys::Unavailable => e
         { 'error' => stop_failure(e) }
       end
+
+      def missing_required?(scope, claims) = OmniAuth::Vitsme::Required.missing_at_partner(scope, claims).any?
 
       def redeem(leg)
         OmniAuth::Vitsme::Partner.finish(partner: leg['partner'], client_id: options.client_id,
@@ -189,8 +196,10 @@ module OmniAuth
 
           partner = stop['partner'].to_s.chomp('/')
           scope = Array(stop['scope']).map(&:to_s)
-          OmniAuth::Vitsme::LabelHint.check!(stop['label_hint'], scope, "stop #{partner}") if strict
-          hint = OmniAuth::Vitsme::LabelHint.pairs(stop.delete('label_hint'), scope)
+          OmniAuth::Vitsme::Required.check!(scope, "stop #{partner}") if strict
+          plain = OmniAuth::Vitsme::Required.plain_all(scope)
+          OmniAuth::Vitsme::LabelHint.check!(stop['label_hint'], plain, "stop #{partner}") if strict
+          hint = OmniAuth::Vitsme::LabelHint.pairs(stop.delete('label_hint'), plain)
           stop.merge('partner' => partner, 'scope' => scope).merge(hint.empty? ? {} : { 'label_hint' => hint })
         end
       end

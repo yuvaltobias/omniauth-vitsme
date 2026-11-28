@@ -29,7 +29,7 @@ rules built in.
 
 ```ruby
 # Gemfile
-gem "omniauth-vitsme", "~> 0.7"
+gem "omniauth-vitsme", "~> 0.8"
 gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
@@ -99,6 +99,18 @@ formats, is [data/claims.json](data/claims.json).
 
 **The person chooses.** On vits.me's consent screen the person picks what to share for each scope,
 at the level of detail they prefer, or nothing at all.
+
+**Say what you cannot do without.** In an ask, a star after a scope marks it required:
+
+```ruby
+scope: %i[full_name__intl* nationality]   # the name is required; the nationality is welcome
+```
+
+vits.me's consent screen shows an asterisk by it, its switch is red while off, and Continue waits until the
+person shares it. The person may still cancel (`:access_denied`). Only a detail can be required: a star on
+`openid`, `fluid` or a gate raises at boot. Your registration lists the plain name. The answer is checked in the
+callback too: one without a required claim fails `:required_missing`. The same star works at a partner
+(`scope: %w[email*]`) and at a trip's stop.
 
 **Missing is not false.** A claim may be absent even when its scope was granted: the person shared
 nothing, holds no such detail, or hid it. `extra.claims["age__over_18"]` is `true`, `false`, or not
@@ -243,7 +255,8 @@ provider :vitsme_partner, name: :contacts,
 ```
 
 The person signs in at the partner with their pincode, sees what your site asks for, turns on what to give
-and selects which. The callback hands you the answer, verified:
+and selects which. A starred scope (`%w[email*]`) is required there: the partner's Share button waits for it,
+and an answer without it fails `:required_missing`. The callback hands you the answer, verified:
 
 ```ruby
 auth.uid                        # the partner's own identifier for the person at your site (never their vits.me uid)
@@ -362,6 +375,7 @@ OmniAuth sends failures to `OmniAuth.config.on_failure` (in Rails, `/auth/failur
 | `:stops_invalid` | vits.me refused a trip's stops: a partner it does not list as active, one named twice, or more than four. |
 | `:vitsme_refused` | vits.me refused an ask's pushed request (its `error_description` says why). |
 | `:vitsme_unavailable` | vits.me could not be reached to push an ask. |
+| `:required_missing` | The answer came without a scope you starred as required (vits.me and the partners here wait for it, so you should not see it from them). On a trip it is that stop's `error`. |
 | `:unverified_identity` | A pending (`fluid_`) identity, refused by `require_verified`. |
 | `:nationality_gate_refused` | The person doesn't hold a nationality the gate requires (or is unverified). |
 | `:site_suspended` | vits.me has suspended your site; nobody can sign in until it is lifted. Your site's page in the developer area says why. |
@@ -449,7 +463,7 @@ verification. The test suite boots it against a stubbed vits.me.
 | `client_id`, `client_secret` | required | From your site's page at [vits.me/developer](https://vits.me/developer) |
 | `environment` | `:production` | `:production`, `:staging`, `:development` |
 | `issuer` | from `environment` | |
-| `scope` | `[:openid]` | Validated against [data/claims.json](data/claims.json); a claim scope needs `ask_about` |
+| `scope` | `[:openid]` | Validated against [data/claims.json](data/claims.json); a claim scope needs `ask_about`, and a star (`age__over_18*`) makes it required |
 | `nationality_gate` | `[]` | ISO alpha-2 codes, e.g. `%w[IL]` |
 | `ask_about` | `nil` | `->(env) { id_token_or_uid }`: makes the provider an ask about the person signed in |
 | `require_verified` | on for an ask | Refuse `fluid_` identities |

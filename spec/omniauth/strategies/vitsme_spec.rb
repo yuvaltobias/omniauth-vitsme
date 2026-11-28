@@ -386,4 +386,39 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
   it "refuses a partner's scope at boot: partners are asked with the vitsme_partner strategy" do
     expect { strategy(scope: %i[openid knot:acme:widgets]) }.to raise_error(ArgumentError, /unknown scope/)
   end
+
+  describe 'required scopes' do
+    let(:provider_options) { { scope: %i[age__over_18* nationality], ask_about: ->(env) { env['HTTP_X_SIGNED_IN'] } } }
+
+    it 'keeps the star on the way to vits.me, and checks the plain name at boot' do
+      expect(strategy(scope: %i[age__over_18*], ask_about: ->(_env) {}).options.scope).to eq(%i[age__over_18* openid])
+      nobody = ->(_env) {}
+      expect { strategy(scope: %i[no_such*], ask_about: nobody) }
+        .to raise_error(ArgumentError, /unknown scope\(s\) no_such/)
+      expect { strategy(scope: %i[age__over_18*]) }.to raise_error(ArgumentError, /ask_about:/)
+
+      signed_in_as(solid)
+      get '/auth/vitsme'
+      expect(authorize_query.fetch('scope')).to eq('age__over_18* nationality openid')
+    end
+
+    it 'refuses a star on openid, fluid, a gate or nothing at boot' do
+      %i[openid* fluid* openid_nationality__il* *].each do |scope|
+        expect { strategy(scope: [scope], ask_about: ->(_env) {}) }
+          .to raise_error(ArgumentError, /only a detail can be required/), scope.to_s
+      end
+    end
+
+    it 'passes an answer that carries the required claim, a false one too' do
+      signed_in_as(solid)
+      expect(sign_in(userinfo.merge('age__over_18' => false)).status).to eq(200)
+      expect(auth.dig('extra', 'claims')).to eq('age__over_18' => false)
+    end
+
+    it 'fails :required_missing for an answer without it' do
+      signed_in_as(solid)
+      sign_in(userinfo.merge('nationality' => 'IL'))
+      expect(last_response.body).to eq('required_missing')
+    end
+  end
 end

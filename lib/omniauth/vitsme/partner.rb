@@ -8,6 +8,7 @@ require 'omniauth/vitsme/http'
 require 'omniauth/vitsme/jws'
 require 'omniauth/vitsme/keys'
 require 'omniauth/vitsme/label_hint'
+require 'omniauth/vitsme/required'
 require 'omniauth/vitsme/partner_directory'
 
 module OmniAuth
@@ -91,7 +92,7 @@ module OmniAuth
           params = { response_type: 'code', client_id: client_id, redirect_uri: redirect_uri,
                      scope: Array(scope).join(' '), state: state, code_challenge: challenge,
                      code_challenge_method: 'S256', ui_locales: ui_locales,
-                     label_hint: LabelHint.param(label_hint, scope),
+                     label_hint: LabelHint.param(label_hint, Required.plain_all(scope)),
                      id_token_hint: seal_subject(id_token, vitsme_issuer) }.compact
           if metadata(partner)['software_statement_required']
             params[:software_statement] = software_statement(vitsme_issuer: vitsme_issuer, client_id: client_id,

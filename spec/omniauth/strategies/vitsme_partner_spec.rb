@@ -166,4 +166,33 @@ RSpec.describe OmniAuth::Strategies::VitsmePartner do
     expect { build.call({ phone: :mobile }) }.to raise_error(ArgumentError, /a scope it does not ask/)
     expect { build.call(->(_env) { { email: 'home page' } }) }.not_to raise_error
   end
+
+  context 'with a required scope' do
+    let(:provider_options) { { scope: %w[email* phone], label_hint: { email: :work } } }
+
+    it 'pushes the star, and the label hint under the plain name' do
+      PartnerStub.stub_partner
+      get '/auth/acme'
+      expect(pushed_params).to include('scope' => 'email* phone', 'label_hint' => 'email:work')
+    end
+
+    it 'hands over an answer that carries it' do
+      PartnerStub.stub_partner
+      get '/auth/acme'
+      get '/auth/acme/callback', code: 'the-code', state: pushed_params.fetch('state'), iss: PartnerStub::ISSUER
+      expect(JSON.parse(last_response.body).dig('extra', 'claims', 'email')).to eq(PartnerStub::EMAILS)
+    end
+
+    it 'fails :required_missing for an answer without it' do
+      PartnerStub.stub_partner(claims: { 'email' => [], 'phone' => [{ 'number' => '+972501234567' }] })
+      get '/auth/acme'
+      get '/auth/acme/callback', code: 'the-code', state: pushed_params.fetch('state'), iss: PartnerStub::ISSUER
+      expect(last_response.body).to eq('required_missing')
+    end
+  end
+
+  it 'refuses a star on nothing at boot' do
+    expect { described_class.new(->(_env) { [200, {}, []] }, partner: PartnerStub::ISSUER, scope: %w[*]) }
+      .to raise_error(ArgumentError, /only a detail can be required/)
+  end
 end

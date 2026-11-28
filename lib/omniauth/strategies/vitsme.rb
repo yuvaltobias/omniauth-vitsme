@@ -10,6 +10,7 @@ require 'omniauth/vitsme/http'
 require 'omniauth/vitsme/subject'
 require 'omniauth/vitsme/pushed_request'
 require 'omniauth/vitsme/options'
+require 'omniauth/vitsme/required'
 
 module OmniAuth
   module Strategies
@@ -24,7 +25,11 @@ module OmniAuth
     #            scope: %i[age__over_18],           # checked against data/claims.json at boot
     #            ask_about: ->(env) { ... },        # the ID token (or uid) you keep for the signed-in person
     #            require_verified: true             # refuse pending (fluid_) identities: on for an ask
+    #   scope: %i[full_name__intl* nationality]     # in an ask, a star marks a detail you cannot do without
     #   nationality_gate: %w[IL]                    # on either: only verified IL nationals get through
+    #
+    # A required detail (OmniAuth::Vitsme::Required) is marked on vits.me's consent page, which waits for it; an answer
+    # without it fails `:required_missing`.
     #
     # An ask is pushed to vits.me first (RFC 9126), so the browser carries only `client_id` and a `request_uri`.
     # A partner of vits.me (a KNOT) is asked with the vitsme_partner strategy, and several sources under one
@@ -74,7 +79,7 @@ module OmniAuth
       option :require_verified, nil
 
       FAILURES = %i[identity_mismatch not_signed_in unverified_identity nationality_gate_refused site_suspended
-                    subject_required subject_invalid vitsme_refused vitsme_unavailable].freeze
+                    subject_required subject_invalid vitsme_refused vitsme_unavailable required_missing].freeze
 
       # Options that were renamed or went: naming one raises at boot, saying what to use instead.
       RENAMED = {
@@ -167,7 +172,10 @@ module OmniAuth
         return unless ask?
         return :not_signed_in if ask_subject.empty?
 
-        :identity_mismatch unless Array(auth.dig('extra', 'lookup_uids')).include?(ask_subject)
+        return :identity_mismatch unless Array(auth.dig('extra', 'lookup_uids')).include?(ask_subject)
+
+        missing = OmniAuth::Vitsme::Required.missing_at_vitsme(options.scope, auth.dig('extra', 'claims'))
+        :required_missing if missing.any?
       end
 
       # More pushed parameters (VitsmeTrip: its stops).
@@ -196,12 +204,20 @@ module OmniAuth
 
       def normalize_options!
         options.issuer ||= OmniAuth::Vitsme.issuer(options.environment)
-        scopes = (Array(options.scope).map(&:to_s) | ['openid']) +
-                 Array(options.nationality_gate).map { |code| "openid_nationality__#{code.to_s.downcase}" }
-        validate_scopes!(scopes)
-        OmniAuth::Vitsme::Options.require_subject!(scopes, ask: ask?)
-        OmniAuth::Vitsme::Options.warn_deprecated(scopes)
+        scopes = asked_scopes
+        # A required scope keeps its star on the way to vits.me; every check reads its plain name.
+        OmniAuth::Vitsme::Required.check!(scopes, "provider :#{options.name}", identity: true)
+        plain = OmniAuth::Vitsme::Required.plain_all(scopes)
+        validate_scopes!(plain)
+        OmniAuth::Vitsme::Options.require_subject!(plain, ask: ask?)
+        OmniAuth::Vitsme::Options.warn_deprecated(plain)
         options.scope = scopes.uniq.map(&:to_sym)
+      end
+
+      # `scope:`, openid, and the gates `nationality_gate:` names.
+      def asked_scopes
+        (Array(options.scope).map(&:to_s) | ['openid']) +
+          Array(options.nationality_gate).map { |code| "openid_nationality__#{code.to_s.downcase}" }
       end
 
       def validate_scopes!(scopes)

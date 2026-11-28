@@ -5,6 +5,7 @@ require 'securerandom'
 require 'omniauth/vitsme/issuers'
 require 'omniauth/vitsme/partner'
 require 'omniauth/vitsme/options'
+require 'omniauth/vitsme/required'
 
 module OmniAuth
   module Strategies
@@ -12,7 +13,7 @@ module OmniAuth
     #
     #   provider :vitsme_partner, name: :contacts,
     #            partner: 'https://contacts.mattyr.com',          # its issuer, as vits.me lists it
-    #            scope: %w[email],                                 # its own scope names
+    #            scope: %w[email],                                 # its own scope names (email*: required)
     #            client_id: ..., client_secret: ...,               # your site at vits.me
     #            partner_secret: ...,                              # yours at the partner, if it takes registrations
     #            ask_about: ->(env) { ...the vits.me ID token you keep for the signed-in person... },
@@ -25,8 +26,9 @@ module OmniAuth
     # not), and `credentials.refresh_token` when the partner keeps a standing consent (ask again with
     # OmniAuth::Vitsme::Partner.fresh_claims). `label_hint` says which label you would like for an item under a
     # scope asked: the partner may use it to sort the person's items, and never tells the label back
-    # (OmniAuth::Vitsme::LabelHint). Ask from a button of your own, when you need it. To ask vits.me and partners
-    # under one pincode, use vitsme_trip.
+    # (OmniAuth::Vitsme::LabelHint). A starred scope is required (OmniAuth::Vitsme::Required): the partner's page
+    # waits for it, and an answer without it fails `:required_missing`. Ask from a button of your own, when you need
+    # it. To ask vits.me and partners under one pincode, use vitsme_trip.
     class VitsmePartner
       include OmniAuth::Strategy
 
@@ -45,16 +47,18 @@ module OmniAuth
       option :issuer, nil
 
       FAILURES = %i[not_signed_in partner_untrusted partner_unavailable partner_refused partner_mixup
-                    access_denied].freeze
+                    access_denied required_missing].freeze
 
       RENAMED = { 'id_token' => 'ask_about: (return the vits.me ID token you keep for the signed-in person)' }.freeze
 
       def initialize(app, *args, &)
         super
         OmniAuth::Vitsme::Options.refuse_renamed!(options, RENAMED)
+        OmniAuth::Vitsme::Required.check!(options.scope, 'vitsme_partner')
         return if options.label_hint.respond_to?(:call)
 
-        OmniAuth::Vitsme::LabelHint.check!(options.label_hint, options.scope, 'vitsme_partner')
+        OmniAuth::Vitsme::LabelHint.check!(options.label_hint, OmniAuth::Vitsme::Required.plain_all(options.scope),
+                                           'vitsme_partner')
       end
 
       def request_phase
@@ -78,6 +82,8 @@ module OmniAuth
         return fail!(refusal) if refusal
 
         @result = redeem(stored)
+        return fail!(:required_missing) if missing_required?(options.scope, @result.claims)
+
         super
       rescue OmniAuth::Vitsme::Partner::Refused => e
         fail!(:partner_refused, e)
@@ -118,6 +124,8 @@ module OmniAuth
                                          code: request.params['code'], redirect_uri: callback_url,
                                          code_verifier: stored['verifier'], basic: partner_basic)
       end
+
+      def missing_required?(scope, claims) = OmniAuth::Vitsme::Required.missing_at_partner(scope, claims).any?
 
       def ui_locales
         options.ui_locales.respond_to?(:call) ? options.ui_locales.call(env) : options.ui_locales

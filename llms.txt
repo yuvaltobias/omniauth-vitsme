@@ -1,6 +1,6 @@
 # omniauth-vitsme
 
-> OmniAuth strategy (Ruby/Rails) for vits.me: sign people in, ask about details they verified (name, age, nationality), and admit only verified nationals of chosen countries. The uid is a private per-site identifier; claims may be absent; a sign-in asks no details, and an ask about a signed-in person names them with `ask_about`; `vitsme_trip` asks vits.me and partners under one pincode.
+> OmniAuth strategy (Ruby/Rails) for vits.me: sign people in, ask about details they verified (name, age, nationality), and admit only verified nationals of chosen countries. The uid is a private per-site identifier; claims may be absent; a sign-in asks no details, and an ask about a signed-in person names them with `ask_about`, starring a scope it cannot do without (`full_name__intl*`); `vitsme_trip` asks vits.me and partners under one pincode.
 
 - [AGENTS.md](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/AGENTS.md): rules for agents, read first
 - [data/claims.json](https://github.com/yuvaltobias/omniauth-vitsme/blob/main/data/claims.json): every scope, claim, type, gate and refusal, machine-readable

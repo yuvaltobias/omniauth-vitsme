@@ -8,6 +8,8 @@ person's verified details to another.
 
 - Scopes, claims, types, value formats and gates are all in [data/claims.json](data/claims.json).
   Read it instead of guessing; an unknown scope raises at boot.
+- In an ask, star only what you truly cannot continue without (`full_name__intl*`): the person then
+  cannot share the rest without it. Never star a sign-in's scopes; the gem refuses that at boot.
 - Ask for the least that answers the question: `age__over_18` rather than `birthdate`, a gate
   rather than `nationality` when "is this person Israeli?" is all you need.
 - vits.me has no email, phone or username claim, and no picture URL. Ask the person for anything else.
@@ -41,7 +43,7 @@ person's verified details to another.
 10. **Handle every failure type** in [README.md#failure-types](README.md#failure-types):
     `not_signed_in`, `identity_mismatch`, `unverified_identity`, `nationality_gate_refused`,
     `site_suspended`, `subject_required`, `vitsme_refused`, `vitsme_unavailable`, `access_denied`, and
-    `stops_invalid` and `partner_untrusted` on a trip.
+    `stops_invalid` and `partner_untrusted` on a trip, and `required_missing` where you starred a scope.
 11. **Ask only for scopes the site registered.** Its page at vits.me/developer sets which it may ask
     for, and vits.me refuses a request for any other. `il_government_id_number` and `portrait` are
     enabled by vits.me on request, per site.

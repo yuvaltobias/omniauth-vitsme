@@ -304,4 +304,25 @@ RSpec.describe OmniAuth::Strategies::VitsmeTrip do
       expect(last_response.body).to eq('identity_mismatch')
     end
   end
+
+  context 'with a required scope at a stop' do
+    let(:stops) do
+      [{ partner: PartnerStub::ISSUER, scope: %w[email*], label_hint: { email: :work } },
+       { partner: PartnerStub::OTHER, scope: %w[email], partner_secret: 'beta-secret' }]
+    end
+
+    before { PartnerStub.stub_partner(issuer: PartnerStub::ISSUER, claims: { 'email' => [] }) }
+
+    it 'pushes the star to that stop, and records its answer without it as required_missing, and goes on' do
+      start!
+      vitsme_answers!
+      expect(PartnerStub.pushed(PartnerStub::ISSUER)).to include('scope' => 'email*', 'label_hint' => 'email:work')
+
+      partner_answers!(PartnerStub::ISSUER)
+      partner_answers!(PartnerStub::OTHER)
+      expect(auth.dig('extra', 'stops').map { |stop| stop.slice('partner', 'error') })
+        .to eq([{ 'partner' => PartnerStub::ISSUER, 'error' => 'required_missing' },
+                { 'partner' => PartnerStub::OTHER }])
+    end
+  end
 end

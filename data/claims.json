@@ -64,7 +64,7 @@
       "scope": "full_name__local",
       "type": "string",
       "examples": ["יובל טוביאס", "יובל ש. טוביאס", "José Núñez"],
-      "description": "A full name in the person's own language and script, as their documents print it: Hebrew for an Israeli. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
+      "description": "A full name in the person's own language and script: Hebrew for an Israeli. The person may leave out given names or show them as initials, keeping at least one written out; the family name is whole. Not a legal name."
     },
     "full_name__intl": {
       "scope": "full_name__intl",

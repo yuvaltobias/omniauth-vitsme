@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-28
+
+### Changed
+
+- The catalog describes `full_name__local` as the name in the person's own language and script, and no longer as
+  the name their documents print: that would be another scope. Words only.
+
 ## [0.8.0] - 2026-11-28
 
 Required scopes.

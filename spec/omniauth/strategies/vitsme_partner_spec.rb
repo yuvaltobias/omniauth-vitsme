@@ -127,53 +127,24 @@ RSpec.describe OmniAuth::Strategies::VitsmePartner do
     expect(last_response.body).to eq('access_denied')
   end
 
-  context 'with a label hint' do
-    let(:provider_options) { { scope: %w[email phone], label_hint: { email: :work, phone: 'mobile' } } }
-
-    it 'pushes the label it would like under each scope it asks' do
-      PartnerStub.stub_partner
-      get '/auth/acme'
-      expect(pushed_params).to include('label_hint' => 'email:work phone:mobile')
-    end
-  end
-
-  context 'with a label hint worked out at the click' do
-    let(:provider_options) { { label_hint: ->(env) { { email: env['HTTP_X_LABEL'], link: :blog } } } }
-
-    it 'pushes the one for this request, dropping what is malformed or not asked' do
-      PartnerStub.stub_partner
-      header 'X-Label', 'school'
-      get '/auth/acme'
-      expect(pushed_params).to include('label_hint' => 'email:school')
-
-      header 'X-Label', 'home page'
-      get '/auth/acme'
-      expect(pushed_params).not_to have_key('label_hint')
-    end
-  end
-
-  it 'pushes no label hint without one' do
+  it 'pushes no label hint, and refuses one at boot, naming the scope to ask instead' do
     PartnerStub.stub_partner
     get '/auth/acme'
     expect(pushed_params).not_to have_key('label_hint')
-  end
-
-  it 'refuses a malformed label hint at boot' do
-    build = lambda do |hint|
-      described_class.new(->(_env) { [200, {}, []] }, partner: PartnerStub::ISSUER, scope: %w[email], label_hint: hint)
-    end
-    expect { build.call({ email: 'home page' }) }.to raise_error(ArgumentError, /vitsme_partner label_hint:/)
-    expect { build.call({ phone: :mobile }) }.to raise_error(ArgumentError, /a scope it does not ask/)
-    expect { build.call(->(_env) { { email: 'home page' } }) }.not_to raise_error
+    expect do
+      described_class.new(lambda { |_env|
+        [200, {}, []]
+      }, partner: PartnerStub::ISSUER, scope: %w[email], label_hint: { email: :work })
+    end.to raise_error(ArgumentError, /label_hint: is now a scope for the label instead, such as email__work/)
   end
 
   context 'with a required scope' do
-    let(:provider_options) { { scope: %w[email* phone], label_hint: { email: :work } } }
+    let(:provider_options) { { scope: %w[email* phone] } }
 
-    it 'pushes the star, and the label hint under the plain name' do
+    it 'pushes the star' do
       PartnerStub.stub_partner
       get '/auth/acme'
-      expect(pushed_params).to include('scope' => 'email* phone', 'label_hint' => 'email:work')
+      expect(pushed_params).to include('scope' => 'email* phone')
     end
 
     it 'hands over an answer that carries it' do

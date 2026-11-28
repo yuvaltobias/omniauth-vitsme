@@ -74,8 +74,8 @@ RSpec.describe 'examples/rails/app.rb' do # rubocop:disable RSpec/DescribeClass
     expect(query['scope']).to eq('openid openid_nationality__il')
 
     get 'https://example.test/auth/vitsme_gated/callback',
-        error: 'access_denied', vitsme_error: 'nationality_gate', state: query['state']
+        error: 'access_denied', vitsme_error: 'gate', state: query['state']
     follow_redirect!
-    expect(last_response.body).to eq('refused: nationality_gate_refused')
+    expect(last_response.body).to eq('refused: gate_refused')
   end
 end

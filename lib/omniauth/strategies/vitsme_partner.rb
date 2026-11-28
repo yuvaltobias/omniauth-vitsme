@@ -17,18 +17,17 @@ module OmniAuth
     #            client_id: ..., client_secret: ...,               # your site at vits.me
     #            partner_secret: ...,                              # yours at the partner, if it takes registrations
     #            ask_about: ->(env) { ...the vits.me ID token you keep for the signed-in person... },
-    #            label_hint: { email: :work }                      # optional; a Hash, or ->(env) { {...} }
     #
     # The person is sent to the partner, signs in there with their pincode (vits.me lets only the person
     # you mean), and answers on the partner's own page. The ID token goes to the partner sealed, encrypted to
     # vits.me (Partner.seal_subject), so the partner cannot read it. The callback has `uid`, the partner's
     # identifier for them at your site, `extra.claims`, what they agreed to (an empty list for what they did
     # not), and `credentials.refresh_token` when the partner keeps a standing consent (ask again with
-    # OmniAuth::Vitsme::Partner.fresh_claims). `label_hint` says which label you would like for an item under a
-    # scope asked: the partner may use it to sort the person's items, and never tells the label back
-    # (OmniAuth::Vitsme::LabelHint). A starred scope is required (OmniAuth::Vitsme::Required): the partner's page
-    # waits for it, and an answer without it fails `:required_missing`. Ask from a button of your own, when you need
-    # it. To ask vits.me and partners under one pincode, use vitsme_trip.
+    # OmniAuth::Vitsme::Partner.fresh_claims). To prefer a label, ask the partner's scope for it (Contacts
+    # Mattyr's `email__work`): there is no label hint since 0.9.0. A starred scope is required
+    # (OmniAuth::Vitsme::Required): the partner's page waits for it, and an answer without it fails
+    # `:required_missing`. Ask from a button of your own, when you need it. To ask vits.me and partners under one
+    # pincode, use vitsme_trip.
     class VitsmePartner
       include OmniAuth::Strategy
 
@@ -42,23 +41,20 @@ module OmniAuth
       option :partner_secret, nil
       option :ask_about, nil
       option :ui_locales, nil
-      option :label_hint, nil
       option :environment, :production
       option :issuer, nil
 
       FAILURES = %i[not_signed_in partner_untrusted partner_unavailable partner_refused partner_mixup
                     access_denied required_missing].freeze
 
-      RENAMED = { 'id_token' => 'ask_about: (return the vits.me ID token you keep for the signed-in person)' }.freeze
+      RENAMED = { 'id_token' => 'ask_about: (return the vits.me ID token you keep for the signed-in person)',
+                  'label_hint' => 'a scope for the label instead, such as email__work ' \
+                                  '(the label hint went in 0.9.0)' }.freeze
 
       def initialize(app, *args, &)
         super
         OmniAuth::Vitsme::Options.refuse_renamed!(options, RENAMED)
         OmniAuth::Vitsme::Required.check!(options.scope, 'vitsme_partner')
-        return if options.label_hint.respond_to?(:call)
-
-        OmniAuth::Vitsme::LabelHint.check!(options.label_hint, OmniAuth::Vitsme::Required.plain_all(options.scope),
-                                           'vitsme_partner')
       end
 
       def request_phase
@@ -108,7 +104,7 @@ module OmniAuth
         OmniAuth::Vitsme::Partner.ask(partner: options.partner, scope: options.scope, id_token: id_token,
                                       client_id: options.client_id, client_secret: options.client_secret,
                                       partner_secret: options.partner_secret, redirect_uri: callback_url,
-                                      vitsme_issuer: vitsme_issuer, ui_locales: ui_locales, label_hint: label_hint)
+                                      vitsme_issuer: vitsme_issuer, ui_locales: ui_locales)
       end
 
       def callback_refusal(stored)
@@ -129,10 +125,6 @@ module OmniAuth
 
       def ui_locales
         options.ui_locales.respond_to?(:call) ? options.ui_locales.call(env) : options.ui_locales
-      end
-
-      def label_hint
-        options.label_hint.respond_to?(:call) ? options.label_hint.call(env) : options.label_hint
       end
 
       def partner_basic = options.partner_secret ? [options.client_id, options.partner_secret] : nil

@@ -26,7 +26,8 @@ module OmniAuth
     #            ask_about: ->(env) { ... },        # the ID token (or uid) you keep for the signed-in person
     #            require_verified: true             # refuse pending (fluid_) identities: on for an ask
     #   scope: %i[full_name__intl* nationality]     # in an ask, a star marks a detail you cannot do without
-    #   nationality_gate: %w[IL]                    # on either: only verified IL nationals get through
+    #   nationality_gate: %w[IL in_eu]              # on either: only verified Israelis or EU nationals get through
+    #   age_gate: 18                                # on either: only people 18 or older (13, 18 or 21), as well
     #
     # A required detail (OmniAuth::Vitsme::Required) is marked on vits.me's consent page, which waits for it; an answer
     # without it fails `:required_missing`.
@@ -67,8 +68,9 @@ module OmniAuth
       option :client_id, nil
       option :client_secret, nil
 
-      # Nationalities a person must hold to finish signing in (gate scopes `openid_nationality__xx`).
+      # Gates: nationalities, any of them (codes, `in_eu`, `in_eea`), and an age as well (13, 18 or 21). docs/gates.md
       option :nationality_gate, []
+      option :age_gate, nil
 
       # `->(env) { id_token_or_uid_or_nil }`: what makes this provider an ask. Return the vits.me ID token you
       # kept for the person signed in to your app (`auth.credentials.id_token`), or the uid you store for them.
@@ -78,7 +80,7 @@ module OmniAuth
       # Refuse a pending (fluid_) identity. nil = on for an ask.
       option :require_verified, nil
 
-      FAILURES = %i[identity_mismatch not_signed_in unverified_identity nationality_gate_refused site_suspended
+      FAILURES = %i[identity_mismatch not_signed_in unverified_identity gate_refused site_suspended
                     subject_required subject_invalid vitsme_refused vitsme_unavailable required_missing].freeze
 
       # Options that were renamed or went: naming one raises at boot, saying what to use instead.
@@ -214,10 +216,10 @@ module OmniAuth
         options.scope = scopes.uniq.map(&:to_sym)
       end
 
-      # `scope:`, openid, and the gates `nationality_gate:` names.
+      # `scope:`, openid, and the gates `nationality_gate:` and `age_gate:` name.
       def asked_scopes
         (Array(options.scope).map(&:to_s) | ['openid']) +
-          Array(options.nationality_gate).map { |code| "openid_nationality__#{code.to_s.downcase}" }
+          OmniAuth::Vitsme::Options.gates(options.nationality_gate, options.age_gate)
       end
 
       def validate_scopes!(scopes)

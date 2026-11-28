@@ -10,7 +10,7 @@ module OmniAuth
     module Catalog
       PATH = File.expand_path('../../../data/claims.json', __dir__)
       DATA = JSON.parse(File.read(PATH)).freeze
-      GATE_PATTERN = Regexp.new(DATA.dig('gates', 'openid_nationality', 'scope_pattern'))
+      GATE_PATTERNS = DATA['gates'].values.map { |gate| Regexp.new(gate['scope_pattern']) }.freeze
 
       module_function
 
@@ -28,7 +28,7 @@ module OmniAuth
       end
 
       def gate_scope?(scope)
-        GATE_PATTERN.match?(scope.to_s)
+        GATE_PATTERNS.any? { |pattern| pattern.match?(scope.to_s) }
       end
 
       # A scope that asks only who the person is: `openid`, `fluid` and the gates. A sign-in asks only these;

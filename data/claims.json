@@ -1,5 +1,5 @@
 {
-  "catalog_version": 4,
+  "catalog_version": 5,
   "about": "Every scope, claim, gate and refusal reason a vits.me relying party can use. Source of truth for omniauth-vitsme (OmniAuth::Vitsme::Catalog) and for agents and developers choosing scopes. Mirrors the vits.me server: config/initializers/doorkeeper.rb (scopes), config/initializers/doorkeeper_openid_connect.rb (claims), config/initializers/authorizations_controller_extension.rb (value domains, gates, refusals).",
   "conventions": {
     "delivery": "Every claim except sub comes from the UserInfo endpoint, never the ID token; the one exception is a trip's ticket, vitsme_trip, which only the ID token carries (see trips). omniauth-vitsme fetches UserInfo on every sign-in.",
@@ -165,10 +165,17 @@
   },
   "gates": {
     "openid_nationality": {
-      "scope_pattern": "^openid_nationality__[a-z]{2}$",
-      "scope_format": "openid_nationality__<iso 3166-1 alpha-2, lower case>",
+      "scope_pattern": "^openid_nationality__([a-z]{2}|in_eu|in_eea)$",
+      "scope_format": "openid_nationality__<iso 3166-1 alpha-2, lower case>, or openid_nationality__in_eu / __in_eea",
       "claims": [],
-      "description": "Only verified people holding one of the requested nationalities can finish signing in. Several codes are any-of. Emits no claim: a successful sign-in is the answer. vits.me asks the person's consent for the verdict. Refused people return with error=access_denied and vitsme_error=nationality_gate (or nationality_gate_unverified).",
+      "description": "Only verified people holding one of the requested nationalities can finish signing in: a country's code, or any EU (EEA) country, never told which. Every nationality gate in a request is one any-of check. Emits no claim: a successful sign-in is the answer. vits.me asks the person's consent for the verdict. Refused people return with error=access_denied and vitsme_error=gate (or gate_unverified).",
+      "incompatible_with": ["fluid"]
+    },
+    "openid_age": {
+      "scope_pattern": "^openid_age__over_(13|18|21)$",
+      "scope_format": "openid_age__over_13, openid_age__over_18 or openid_age__over_21",
+      "claims": [],
+      "description": "Only verified people at least that old, from their verified date of birth, can finish signing in; nobody without one on record. With a nationality gate both must hold; two age gates mean the higher. Emits no claim. Refused people return with error=access_denied and vitsme_error=gate (or gate_unverified), never told which gate.",
       "incompatible_with": ["fluid"]
     }
   },
@@ -185,15 +192,15 @@
     "limits": { "stops": 4, "lifetime_seconds": 600, "first_stop_within_seconds": 120 }
   },
   "refusals": {
-    "nationality_gate": {
+    "gate": {
       "error": "access_denied",
-      "omniauth_failure": "nationality_gate_refused",
-      "description": "The person holds none of the nationalities the gate requires (or has hidden them)."
+      "omniauth_failure": "gate_refused",
+      "description": "The person does not hold the request's gates: none of its nationalities (or has hidden them), or not the age. Never which one."
     },
-    "nationality_gate_unverified": {
+    "gate_unverified": {
       "error": "access_denied",
-      "omniauth_failure": "nationality_gate_refused",
-      "description": "A pending (unverified) signup tried to pass a nationality gate."
+      "omniauth_failure": "gate_refused",
+      "description": "A pending (unverified) signup tried to pass a gate."
     },
     "subject_mismatch": {
       "error": "access_denied",

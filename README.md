@@ -29,7 +29,7 @@ rules built in.
 
 ```ruby
 # Gemfile
-gem "omniauth-vitsme", "~> 0.8"
+gem "omniauth-vitsme", "~> 0.9"
 gem "omniauth-rails_csrf_protection" # OmniAuth 2 starts sign-in by POST only
 ```
 
@@ -183,13 +183,15 @@ sign-in), or the uid you store for them.
 ## Gated communities
 
 ```ruby
-provider :vitsme, client_id: ..., client_secret: ..., nationality_gate: %w[IL]
+provider :vitsme, client_id: ..., client_secret: ..., nationality_gate: %w[IL in_eu], age_gate: 18
 ```
 
-Only verified people holding one of the listed nationalities finish signing in. Several codes mean
-any of them. vits.me asks the person to consent to this check. **The gate sends no claim back**: a
-successful sign-in is the answer. Add the `nationality` scope if you also want the value. A person
-who doesn't pass returns as `:nationality_gate_refused`, and no account is created.
+Only verified people holding one of the listed nationalities finish signing in: a country code, or
+`in_eu` / `in_eea` for any EU (EEA) country, never told which. Several mean any of them. `age_gate:`
+(13, 18 or 21) must hold as well, from the verified date of birth. vits.me asks the person to consent to
+these checks, in one sentence. **A gate sends no claim back**: a successful sign-in is the answer. Add the
+`nationality` scope if you also want the value. A person who doesn't pass returns as `:gate_refused`, never
+saying which gate, and no account is created.
 
 A gate admits verified people only, so it can't be combined with the `fluid` scope (that raises at
 boot). Make your gated sign-in button look different from an ordinary one, so people know before they
@@ -264,18 +266,9 @@ auth.extra.claims               # { "<scope>" => <the partner's answer> }, an em
 auth.credentials.refresh_token  # when the partner keeps a standing consent; nil otherwise
 ```
 
-**Say which label you would like.** A partner whose items carry labels (a work and a home address, say) takes a
-`label_hint`, `{ scope => label }`, as a Hash or `->(env) { {...} }`, for scopes you ask:
-
-```ruby
-provider :vitsme_partner, name: :contacts, partner: "https://partner.example", scope: %w[email phone],
-                          label_hint: { email: :work, phone: :mobile }   # and the options above
-```
-
-The partner may use it to sort or preselect the person's item with that label; it is never told back, and a
-partner without labels ignores it. Labels are the partner's own; the gem checks only the shape (a scope and a
-label, neither with spaces or colons): a malformed static hint raises at boot, and a malformed pair worked out
-at the click is dropped. `OmniAuth::Vitsme::Partner.ask` takes the same `label_hint:`.
+**A label is a scope.** A partner whose items carry labels may offer a scope for each: Contacts Mattyr's
+`email__personal` and `email__work` put the person's items with that label first, and the person still chooses.
+Ask both at once if you want both. There is no `label_hint` since 0.9.0: naming one raises at boot.
 
 Failures are `:not_signed_in` (no ID token), `:partner_untrusted` (vits.me does not list it as active),
 `:partner_unavailable`, `:partner_refused`, `:partner_mixup` (an answer from another issuer) and
@@ -341,12 +334,6 @@ stop within two). When it is not, the person enters the pincode there, and the t
   that fails (`access_denied`, `partner_refused`, `partner_unavailable`, `partner_untrusted`, `partner_mixup`)
   is recorded and the trip goes on; a first ask that fails fails the trip with the vitsme failure types.
 - A trip does not start with a stop vits.me does not list as active (`:partner_untrusted`).
-- A stop may carry a `label_hint`, as the partner strategy's (above), sent with that stop's request only and
-  kept with the stop in `store:`, so a later stop is asked with the hint of the click:
-
-  ```ruby
-  stops: [{ partner: "https://contacts.example", scope: %w[email phone], label_hint: { email: :work, phone: :mobile } }]
-  ```
 
 ## Finding a returning person
 
@@ -377,7 +364,7 @@ OmniAuth sends failures to `OmniAuth.config.on_failure` (in Rails, `/auth/failur
 | `:vitsme_unavailable` | vits.me could not be reached to push an ask. |
 | `:required_missing` | The answer came without a scope you starred as required (vits.me and the partners here wait for it, so you should not see it from them). On a trip it is that stop's `error`. |
 | `:unverified_identity` | A pending (`fluid_`) identity, refused by `require_verified`. |
-| `:nationality_gate_refused` | The person doesn't hold a nationality the gate requires (or is unverified). |
+| `:gate_refused` | The person doesn't hold the gates (a nationality, or the age), or is unverified. Never which gate. |
 | `:site_suspended` | vits.me has suspended your site; nobody can sign in until it is lifted. Your site's page in the developer area says why. |
 | `:invalid_scope` | The app asked for a scope its registration doesn't include. Tick it on your site's page at vits.me/developer (the Israeli ID number needs vits.me to enable it). |
 | `:access_denied` | Any other refusal, e.g. the person cancelled. |
@@ -435,7 +422,7 @@ OmniAuth::Vitsme::Test.mock_auth(claims: { age__over_18: true })                
 OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: user.vitsme_uid, claims: { name: "Jane D." })
 OmniAuth::Vitsme::Test.mock_auth(identity: :fluid)                               # pending signup
 OmniAuth::Vitsme::Test.mock_auth(:vitsme_verify, uid: someone_else_uid)                   # → :identity_mismatch
-OmniAuth::Vitsme::Test.mock_failure(:vitsme, :nationality_gate_refused)
+OmniAuth::Vitsme::Test.mock_failure(:vitsme, :gate_refused)
 OmniAuth::Vitsme::Test.mock_partner(:contacts, partner: "https://partner.example", claims: { email: [] })
 OmniAuth::Vitsme::Test.mock_trip(:verify_and_groups, uid: user.vitsme_uid, claims: { age__over_18: true },
                                  stops: [{ partner: "https://groups.example", claims: { "group.membership" => [] } },
@@ -451,7 +438,7 @@ still run on the mock. An ask's `ask_about` and `require_verified` judge the moc
 answer exactly as they would a real one: mock the signed-in person's uid to pass, or someone else's
 to see `:identity_mismatch`. A mocked earlier uid (`defunct_uids:`) matches as it does in
 production. `mock_failure` simulates refusals that only vits.me can make, such as
-`:nationality_gate_refused`, `:site_suspended` or `:access_denied`.
+`:gate_refused`, `:site_suspended` or `:access_denied`.
 
 [examples/rails/app.rb](examples/rails/app.rb) is a one-file Rails app using sign-in, a gate and
 verification. The test suite boots it against a stubbed vits.me.

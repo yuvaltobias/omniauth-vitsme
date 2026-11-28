@@ -7,7 +7,6 @@ require 'securerandom'
 require 'omniauth/vitsme/http'
 require 'omniauth/vitsme/jws'
 require 'omniauth/vitsme/keys'
-require 'omniauth/vitsme/label_hint'
 require 'omniauth/vitsme/required'
 require 'omniauth/vitsme/partner_directory'
 
@@ -81,18 +80,16 @@ module OmniAuth
 
         # Asks a partner about the person an ID token names: checks vits.me lists it as active, pushes the request
         # with the sealed subject (and a software statement where the partner wants one), and returns where to send
-        # the person, with the state and PKCE verifier its callback needs. `label_hint`, a Hash { scope => label },
-        # says which label you would like for an item under a scope asked (LabelHint); malformed pairs are dropped.
+        # the person, with the state and PKCE verifier its callback needs.
         # The vitsme_partner and vitsme_trip strategies ask this way.
         def ask(partner:, scope:, id_token:, client_id:, client_secret:, redirect_uri:, vitsme_issuer:,
-                partner_secret: nil, ui_locales: nil, label_hint: nil)
+                partner_secret: nil, ui_locales: nil)
           trusted!(partner, vitsme_issuer)
           verifier, challenge = pkce
           state = SecureRandom.urlsafe_base64(24)
           params = { response_type: 'code', client_id: client_id, redirect_uri: redirect_uri,
                      scope: Array(scope).join(' '), state: state, code_challenge: challenge,
                      code_challenge_method: 'S256', ui_locales: ui_locales,
-                     label_hint: LabelHint.param(label_hint, Required.plain_all(scope)),
                      id_token_hint: seal_subject(id_token, vitsme_issuer) }.compact
           if metadata(partner)['software_statement_required']
             params[:software_statement] = software_statement(vitsme_issuer: vitsme_issuer, client_id: client_id,

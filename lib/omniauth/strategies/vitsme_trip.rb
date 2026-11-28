@@ -16,8 +16,7 @@ module OmniAuth
     #            scope: %i[nationality age__over_18],                         # vits.me's own; openid alone is fine
     #            stops: [{ partner: 'https://groups.mattyr.com', scope: %w[group.membership],
     #                      partner_secret: ... },
-    #                    { partner: 'https://contacts.mattyr.com', scope: %w[email],
-    #                      label_hint: { email: :work } }],                  # an Array, or ->(env) { [...] }
+    #                    { partner: 'https://contacts.mattyr.com', scope: %w[email__work] }],  # an Array, or ->(env) { [...] }
     #            store: Rails.cache                                           # read / write(expires_in:) / delete
     #
     # Your site stays in the middle and asks each source as it would on its own. The first ask goes to vits.me,
@@ -25,9 +24,7 @@ module OmniAuth
     # names them all. Its ID token carries the trip's ticket (`vitsme_trip`). Each partner is then asked with
     # that fresh ID token, sealed, exactly as vitsme_partner asks, and vits.me lets the partner's sign-in through
     # without the pincode page when everything matches. When it does not (too late, another browser, a partner
-    # that wants its own pincode), the person simply enters the pincode there: the trip still finishes. A stop's
-    # `label_hint` ({ scope => label }, OmniAuth::Vitsme::LabelHint) goes with that stop's request only: the
-    # partner may use it to sort the person's items, and never tells the label back.
+    # that wants its own pincode), the person simply enters the pincode there: the trip still finishes.
     #
     # Each code is redeemed as it arrives, and the answers wait in `store`, never in the session, which keeps one
     # random key: a portrait alone is 200 KB. Every leg comes back to this provider's one callback,
@@ -76,7 +73,7 @@ module OmniAuth
 
         @stops.each { |stop| OmniAuth::Vitsme::Partner.trusted!(stop['partner'], options.issuer) }
         session[SESSION_KEY] = key = SecureRandom.urlsafe_base64(24)
-        save(key, 'stops' => @stops.map { |stop| stop.slice('partner', 'scope', 'label_hint') }, 'answers' => [])
+        save(key, 'stops' => @stops.map { |stop| stop.slice('partner', 'scope') }, 'answers' => [])
         super
       rescue OmniAuth::Vitsme::Partner::Untrusted => e
         fail!(:partner_untrusted, e)
@@ -127,8 +124,7 @@ module OmniAuth
         OmniAuth::Vitsme::Partner.ask(partner: stop['partner'], scope: stop['scope'], id_token: id_token,
                                       client_id: options.client_id, client_secret: options.client_secret,
                                       partner_secret: partner_secret(stop['partner']), redirect_uri: stop_redirect_uri,
-                                      vitsme_issuer: options.issuer, ui_locales: ui_locales,
-                                      label_hint: stop['label_hint'])
+                                      vitsme_issuer: options.issuer, ui_locales: ui_locales)
       end
 
       def stop_answered(trip)
@@ -184,8 +180,8 @@ module OmniAuth
         Array(stops)
       end
 
-      # A stop's label hint is kept with it in `store` (it is no secret), so the leg that asks a later stop has
-      # the one worked out at the click. A malformed pair raises at boot and is dropped at the click.
+      # A stop names its partner and scopes. A label hint, gone in 0.9.0, raises: ask the partner's scope for the
+      # label instead (`email__work`).
       def normalize_stops(stops, strict: false)
         stops.map do |stop|
           stop = stop.to_h.transform_keys(&:to_s)
@@ -196,11 +192,13 @@ module OmniAuth
 
           partner = stop['partner'].to_s.chomp('/')
           scope = Array(stop['scope']).map(&:to_s)
+          if stop.key?('label_hint')
+            raise ArgumentError, "omniauth-vitsme: stop #{partner} label_hint: ask a scope for the label instead, " \
+                                 'such as email__work (the label hint went in 0.9.0)'
+          end
+
           OmniAuth::Vitsme::Required.check!(scope, "stop #{partner}") if strict
-          plain = OmniAuth::Vitsme::Required.plain_all(scope)
-          OmniAuth::Vitsme::LabelHint.check!(stop['label_hint'], plain, "stop #{partner}") if strict
-          hint = OmniAuth::Vitsme::LabelHint.pairs(stop.delete('label_hint'), plain)
-          stop.merge('partner' => partner, 'scope' => scope).merge(hint.empty? ? {} : { 'label_hint' => hint })
+          stop.merge('partner' => partner, 'scope' => scope)
         end
       end
 

@@ -10,6 +10,12 @@ module OmniAuth
       module_function
 
       # Raises for an option that was renamed or went, saying what to use instead.
+      # The gate scopes `nationality_gate:` and `age_gate:` name (docs/gates.md in the vits.me repository).
+      def gates(nationalities, age)
+        Array(nationalities).map { |code| "openid_nationality__#{code.to_s.downcase}" } +
+          Array(age).map { |years| "openid_age__over_#{years}" }
+      end
+
       def refuse_renamed!(options, renamed)
         given = renamed.keys.select { |name| options.key?(name) }
         return if given.empty?
@@ -24,7 +30,7 @@ module OmniAuth
 
         raise ArgumentError, "omniauth-vitsme: #{details.join(', ')} asks for details, and a request for " \
                              'details names its person: set ask_about:, and ask from a button once the person ' \
-                             'is signed in. A sign-in asks only openid and gates (nationality_gate:).'
+                             'is signed in. A sign-in asks only openid and gates (nationality_gate:, age_gate:).'
       end
 
       def warn_deprecated(scopes)

@@ -61,15 +61,8 @@ RSpec.describe OmniAuth::Vitsme::Partner do
 
     before { PartnerStub.stub_partner }
 
-    it 'pushes the label hint for the scopes it asks, dropping anything malformed or not asked' do
-      ask(label_hint: { email: :work, phone: 'home page', link: :blog, 'phone' => 'mobile' })
-      expect(PartnerStub.pushed).to include('scope' => 'email phone', 'label_hint' => 'email:work phone:mobile')
-    end
-
-    it 'pushes no label hint without one, or with none left' do
+    it 'pushes no label hint' do
       ask
-      expect(PartnerStub.pushed).not_to have_key('label_hint')
-      ask(label_hint: { link: :blog })
       expect(PartnerStub.pushed).not_to have_key('label_hint')
     end
   end

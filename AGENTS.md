@@ -29,8 +29,9 @@ person's verified details to another.
    says why. Don't set `ask_about` on the sign-in provider: there is nobody to ask about yet.
 4. **Missing is not false.** Any disclosure claim may be absent: not shared, not held, or hidden.
    Branch on `true` / `false` / absent, and never default a missing boolean to `false`.
-5. **A gate emits nothing.** `nationality_gate:` admits only verified nationals. Success is the
-   answer, and a refusal is `:nationality_gate_refused`. It can't be combined with the `fluid` scope.
+5. **A gate emits nothing.** `nationality_gate:` (codes, `in_eu`, `in_eea`: any of them) and `age_gate:`
+   (as well) admit only verified people who hold them. Success is the answer, and a refusal is
+   `:gate_refused`, never saying which. It can't be combined with the `fluid` scope.
 6. **`fluid_` means unverified.** Without the `fluid` scope you never see one. With it, give such
    people a limited, tentative account and merge it when `extra.fluid_uids` shows up on a verified
    sign-in.
@@ -41,7 +42,7 @@ person's verified details to another.
 9. **User-facing copy says "verified"**, not "vits.me-verified". There is no need to name vits.me to
    end users.
 10. **Handle every failure type** in [README.md#failure-types](README.md#failure-types):
-    `not_signed_in`, `identity_mismatch`, `unverified_identity`, `nationality_gate_refused`,
+    `not_signed_in`, `identity_mismatch`, `unverified_identity`, `gate_refused`,
     `site_suspended`, `subject_required`, `vitsme_refused`, `vitsme_unavailable`, `access_denied`, and
     `stops_invalid` and `partner_untrusted` on a trip, and `required_missing` where you starred a scope.
 11. **Ask only for scopes the site registered.** Its page at vits.me/developer sets which it may ask

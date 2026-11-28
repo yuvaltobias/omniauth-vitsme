@@ -204,54 +204,6 @@ RSpec.describe OmniAuth::Strategies::VitsmeTrip do
     end
   end
 
-  context 'with a label hint on each stop' do
-    let(:stops) do
-      [{ partner: PartnerStub::ISSUER, scope: %w[email phone], label_hint: { email: :work, phone: 'mobile' } },
-       { partner: PartnerStub::OTHER, scope: %w[email], label_hint: { 'email' => 'school' } }]
-    end
-
-    it "pushes each stop's hint with that stop's request only" do
-      start!
-      expect(VitsMeStub.pushed).not_to have_key('label_hint')
-      vitsme_answers!
-      expect(PartnerStub.pushed(PartnerStub::ISSUER)).to include('label_hint' => 'email:work phone:mobile')
-
-      partner_answers!(PartnerStub::ISSUER)
-      expect(PartnerStub.pushed(PartnerStub::OTHER)).to include('label_hint' => 'email:school')
-    end
-  end
-
-  context 'with a label hint worked out at the click' do
-    let(:provider_options) do
-      { stops: lambda { |env|
-        [{ partner: PartnerStub::ISSUER, scope: %w[email] },
-         { partner: PartnerStub::OTHER, scope: %w[email], partner_secret: 'beta-secret',
-           label_hint: { email: env['HTTP_X_LABEL'], phone: :mobile } }]
-      } }
-    end
-
-    it 'asks a later stop with the hint of the click, kept with the stop, not one worked out again' do
-      header 'X-Label', 'work'
-      start!
-      header 'X-Label', 'home'
-      vitsme_answers!
-      expect(PartnerStub.pushed(PartnerStub::ISSUER)).not_to have_key('label_hint')
-      partner_answers!(PartnerStub::ISSUER)
-
-      expect(PartnerStub.pushed(PartnerStub::OTHER)).to include('label_hint' => 'email:work')
-    end
-
-    it 'drops a malformed hint at the click rather than failing the trip' do
-      header 'X-Label', 'home page'
-      start!
-      vitsme_answers!
-      partner_answers!(PartnerStub::ISSUER)
-
-      expect(PartnerStub.pushed(PartnerStub::OTHER)).to include('scope' => 'email')
-      expect(PartnerStub.pushed(PartnerStub::OTHER)).not_to have_key('label_hint')
-    end
-  end
-
   describe 'at boot' do
     def build(**overrides)
       described_class.new(->(_env) { [200, {}, []] }, options.merge(overrides))
@@ -264,13 +216,11 @@ RSpec.describe OmniAuth::Strategies::VitsmeTrip do
       expect { build(stops: [{ scope: %w[email] }]) }.to raise_error(ArgumentError, /partner/)
     end
 
-    it "refuses a stop's malformed label hint" do
+    it "refuses a stop's label hint, naming the scope to ask instead" do
       stop = { partner: PartnerStub::ISSUER, scope: %w[email] }
-      expect { build(stops: [stop.merge(label_hint: { email: 'home page' })]) }
-        .to raise_error(ArgumentError, %r{stop https://acme.test label_hint: "email:home page"})
-      expect { build(stops: [stop.merge(label_hint: { phone: :mobile })]) }
-        .to raise_error(ArgumentError, /names phone, a scope it does not ask/)
-      expect { build(stops: [stop.merge(label_hint: 'email:work')]) }.to raise_error(ArgumentError, /is a Hash/)
+      expect { build(stops: [stop.merge(label_hint: { email: :work })]) }
+        .to raise_error(ArgumentError,
+                        %r{stop https://acme.test label_hint: ask a scope for the label instead, such as email__work})
     end
   end
 
@@ -307,7 +257,7 @@ RSpec.describe OmniAuth::Strategies::VitsmeTrip do
 
   context 'with a required scope at a stop' do
     let(:stops) do
-      [{ partner: PartnerStub::ISSUER, scope: %w[email*], label_hint: { email: :work } },
+      [{ partner: PartnerStub::ISSUER, scope: %w[email*] },
        { partner: PartnerStub::OTHER, scope: %w[email], partner_secret: 'beta-secret' }]
     end
 
@@ -316,7 +266,7 @@ RSpec.describe OmniAuth::Strategies::VitsmeTrip do
     it 'pushes the star to that stop, and records its answer without it as required_missing, and goes on' do
       start!
       vitsme_answers!
-      expect(PartnerStub.pushed(PartnerStub::ISSUER)).to include('scope' => 'email*', 'label_hint' => 'email:work')
+      expect(PartnerStub.pushed(PartnerStub::ISSUER)).to include('scope' => 'email*')
 
       partner_answers!(PartnerStub::ISSUER)
       partner_answers!(PartnerStub::OTHER)

@@ -79,6 +79,14 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
       expect(s.options.scope).to eq(%i[age__over_18 openid openid_nationality__il openid_nationality__us])
     end
 
+    it 'adds groups of countries and an age gate as gate scopes, a sign-in all the same' do
+      s = strategy(nationality_gate: %w[IL in_eu], age_gate: 21)
+      expect(s.options.scope).to eq(%i[openid openid_nationality__il openid_nationality__in_eu openid_age__over_21])
+      expect(OmniAuth::Vitsme::Catalog.identity_scope?('openid_age__over_18')).to be(true)
+      expect(OmniAuth::Vitsme::Catalog.gate_scope?('openid_age__over_19')).to be(false)
+      expect { strategy(age_gate: 19) }.to raise_error(ArgumentError, /unknown scope/)
+    end
+
     it 'refuses an unknown scope at boot' do
       expect { strategy(scope: %i[openid id_number]) }.to raise_error(ArgumentError, /unknown scope\(s\) id_number/)
     end
@@ -352,10 +360,9 @@ RSpec.describe OmniAuth::Strategies::Vitsme do
       last_response.body
     end
 
-    it 'names a failed nationality gate' do
-      expect(refused_with(error: 'access_denied', vitsme_error: 'nationality_gate')).to eq('nationality_gate_refused')
-      expect(refused_with(error: 'access_denied', vitsme_error: 'nationality_gate_unverified'))
-        .to eq('nationality_gate_refused')
+    it 'names a failed gate, whichever it was' do
+      expect(refused_with(error: 'access_denied', vitsme_error: 'gate')).to eq('gate_refused')
+      expect(refused_with(error: 'access_denied', vitsme_error: 'gate_unverified')).to eq('gate_refused')
     end
 
     it 'names a subject mismatch vits.me caught itself' do

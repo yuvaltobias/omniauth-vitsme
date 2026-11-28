@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-28
+
+Gates for groups of countries and for age, and a scope per label instead of a hint.
+
+### Added
+
+- `age_gate:` (13, 18 or 21), the gate scopes `openid_age__over_13`, `_18` and `_21`: only people at least that old
+  sign in, from their verified date of birth. With a nationality gate, both must hold.
+- `nationality_gate:` takes `in_eu` and `in_eea` beside country codes (`openid_nationality__in_eu`, `__in_eea`):
+  any EU (EEA) country, never told which. Every nationality gate is one any-of check.
+- The catalog (version 5) lists both gates.
+
+### Changed
+
+- A refused gate is `:gate_refused` (was `:nationality_gate_refused`), from vits.me's `vitsme_error` `gate` and
+  `gate_unverified`, which never say which gate failed.
+
+### Removed
+
+- `label_hint:`, on `provider :vitsme_partner`, on a trip's stops and on `OmniAuth::Vitsme::Partner.ask`, and
+  `OmniAuth::Vitsme::LabelHint`. Ask the partner's scope for the label instead (Contacts Mattyr's `email__work`).
+  Naming `label_hint` raises, saying so.
+
 ## [0.8.1] - 2026-11-28
 
 ### Changed
